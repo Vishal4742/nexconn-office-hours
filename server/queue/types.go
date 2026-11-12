@@ -47,7 +47,7 @@ type Hand struct {
 	AckedAt    time.Time // when its author pressed "I'm here" (FR-QUEUE-9); zero if not
 	AwayCount  int       // how often its author missed their turn (FR-QUEUE-8)
 	MergedInto int64     // the hand it was merged into (FR-HAND-8), or 0
-	Plus       []string  // the user ids who pressed "+1 me too" (FR-HAND-7), in that order
+	Plus       []string  // the user ids who pressed "+1 me too" (FR-HAND-7): a set, sorted by user id
 }
 
 // State is one session with every hand of it that is still open, in no particular order. What
