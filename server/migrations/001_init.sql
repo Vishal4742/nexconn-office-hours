@@ -13,6 +13,7 @@ CREATE TABLE users (
 
 CREATE TABLE projects (
   id              TEXT PRIMARY KEY,           -- random: the room's Nexconn group is 'p' || id, so nobody may guess it
+  github_id       BIGINT NOT NULL,            -- GitHub's id of the repository: a name can change hands, this can't
   owner           TEXT NOT NULL,              -- GitHub's own spelling
   repo            TEXT NOT NULL,
   description     TEXT NOT NULL DEFAULT '',

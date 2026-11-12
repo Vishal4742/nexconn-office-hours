@@ -18,6 +18,7 @@ var ErrUnknownUser = errors.New("store: no such user")
 // asked for, and are false when it was asked for nobody.
 type Project struct {
 	ID           string // random; the room's Nexconn group is "p" + ID
+	GitHubID     int64  // GitHub's id of the repository it was registered for
 	Owner        string // GitHub's own spelling
 	Repo         string
 	Description  string
@@ -39,12 +40,12 @@ func (s *Store) ProjectByRepo(ctx context.Context, owner, repo, viewerID string)
 func projectByRepo(ctx context.Context, q rowQuerier, owner, repo, viewerID string) (Project, bool, error) {
 	var p Project
 	err := q.QueryRow(ctx, `
-		SELECT p.id, p.owner, p.repo, p.description,
+		SELECT p.id, p.github_id, p.owner, p.repo, p.description,
 		       EXISTS (SELECT 1 FROM members m WHERE m.project_id = p.id AND m.user_id = $3),
 		       EXISTS (SELECT 1 FROM maintainers t WHERE t.project_id = p.id AND t.user_id = $3)
 		FROM projects p
 		WHERE lower(p.owner) = lower($1::text) AND lower(p.repo) = lower($2::text)`,
-		owner, repo, viewerID).Scan(&p.ID, &p.Owner, &p.Repo, &p.Description, &p.IsMember, &p.IsMaintainer)
+		owner, repo, viewerID).Scan(&p.ID, &p.GitHubID, &p.Owner, &p.Repo, &p.Description, &p.IsMember, &p.IsMaintainer)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Project{}, false, nil
 	}
@@ -74,9 +75,9 @@ func (s *Store) CreateProject(ctx context.Context, p Project, creatorID string) 
 	defer tx.Rollback(ctx) // does nothing after Commit; before it, the error already being returned is the one to report
 
 	tag, err := tx.Exec(ctx, `
-		INSERT INTO projects (id, owner, repo, description, created_by) VALUES ($1, $2, $3, $4, $5)
+		INSERT INTO projects (id, github_id, owner, repo, description, created_by) VALUES ($1, $2, $3, $4, $5, $6)
 		ON CONFLICT (lower(owner), lower(repo)) DO NOTHING`,
-		p.ID, p.Owner, p.Repo, p.Description, creatorID)
+		p.ID, p.GitHubID, p.Owner, p.Repo, p.Description, creatorID)
 	if err != nil {
 		return Project{}, false, unknownUserOr("create project", err)
 	}
@@ -118,7 +119,7 @@ const maxProjectsListed = 100
 // ProjectsOf lists the projects a user is a member of, by name. Maintainers are members too.
 func (s *Store) ProjectsOf(ctx context.Context, userID string) ([]Project, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT p.id, p.owner, p.repo, p.description,
+		SELECT p.id, p.github_id, p.owner, p.repo, p.description,
 		       EXISTS (SELECT 1 FROM maintainers t WHERE t.project_id = p.id AND t.user_id = m.user_id)
 		FROM members m
 		JOIN projects p ON p.id = m.project_id
@@ -130,7 +131,7 @@ func (s *Store) ProjectsOf(ctx context.Context, userID string) ([]Project, error
 	}
 	projects, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (Project, error) {
 		p := Project{IsMember: true}
-		err := row.Scan(&p.ID, &p.Owner, &p.Repo, &p.Description, &p.IsMaintainer)
+		err := row.Scan(&p.ID, &p.GitHubID, &p.Owner, &p.Repo, &p.Description, &p.IsMaintainer)
 		return p, err
 	})
 	if err != nil {
