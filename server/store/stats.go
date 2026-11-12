@@ -19,14 +19,14 @@ func (s *Store) Stats(ctx context.Context, projectID string) (Stats, error) {
 	var n Stats
 	err := s.pool.QueryRow(ctx, `
 		SELECT (SELECT count(*) FROM sessions s WHERE $1 = '' OR s.project_id = $1),
-		       h.raised, h.answered,
+		       hand_counts.raised, hand_counts.answered,
 		       (SELECT count(*) FROM faq_entries f WHERE f.deleted_at IS NULL AND ($1 = '' OR f.project_id = $1)),
 		       (SELECT count(DISTINCT m.user_id) FROM members m WHERE $1 = '' OR m.project_id = $1)
 		FROM (
 			SELECT count(*) AS raised, count(*) FILTER (WHERE h.status = 'answered') AS answered
 			FROM hands h JOIN sessions s ON s.id = h.session_id
 			WHERE $1 = '' OR s.project_id = $1
-		) h`, projectID).Scan(&n.Sessions, &n.HandsRaised, &n.HandsAnswered, &n.FAQEntries, &n.Participants)
+		) hand_counts`, projectID).Scan(&n.Sessions, &n.HandsRaised, &n.HandsAnswered, &n.FAQEntries, &n.Participants)
 	if err != nil {
 		return Stats{}, fmt.Errorf("store: count stats: %w", err)
 	}
