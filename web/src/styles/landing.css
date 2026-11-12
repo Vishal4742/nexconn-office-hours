@@ -1,3 +1,654 @@
 /* The landing page: the story of one session, and its dark mode. Owned by the landing page (worker 10) of the
    parallel build (notes/phase-2-plan.md). It is loaded after app.css, so a rule here wins over
-   the rule it replaces there. */
+   the rule it replaces there. Values from the approved demo (docs/UI.md §1 v3, S1 and §8). */
+
+/* ---------- tokens: Landing.tsx puts .land-page on <html> while the page is shown ---------- */
+:root.land-page {
+  --land-photo-filter: none;
+  --land-mist-top: #b5cac6;
+  --land-mist-low: #edf1ee;
+  --land-cloud: 0.95;
+  --land-bird: #2b2a26;
+  --land-gold: #f2c27a;
+}
+/* Dark mode follows the system on this page only; the rest of the app stays light. Photos dim. */
+@media (prefers-color-scheme: dark) {
+  :root.land-page {
+    --paper: #0e0f13;
+    --surface: #15161b;
+    --sunken: #1b1c22;
+    --ink: #ecebe6;
+    --muted: #9a9ca6;
+    --hairline: #26282f;
+    --divider: #34363f;
+    --ring: 0 0 0 1px rgba(255, 255, 255, 0.09);
+    --blue: #7a9bff;
+    --blue-hover: #94afff;
+    --blue-ink: #0e0f13;
+    --blue-wash: rgba(122, 155, 255, 0.12);
+    --green: #4cc38a;
+    --amber: #e0a84a;
+    --glass: rgba(14, 15, 19, 0.72);
+    --land-photo-filter: brightness(0.55) saturate(0.85);
+    --land-mist-top: #141c21;
+    --land-mist-low: #26343a;
+    --land-cloud: 0.28;
+    --land-bird: #0b0c0e;
+    color-scheme: dark;
+  }
+}
+
+/* ---------- hero: the photo shows through a painted swath, with nothing on top of it ---------- */
+/* The swath is a data: image set inline by Hero.tsx (landing/brush.ts). A Content-Security-Policy
+   with img-src would have to allow data:, or the photo would be masked away. */
+.land-hero-photo {
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  filter: var(--land-photo-filter);
+}
+
+/* ---------- sections ---------- */
+.land-section {
+  padding-top: 96px;
+}
+.land-h2 {
+  font-size: 36px;
+  line-height: 40px;
+  letter-spacing: -0.022em;
+  max-width: 720px;
+}
+
+/* ---------- the story: one session hour by hour, beside a pinned frame ---------- */
+.land-story {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+  gap: 48px;
+  margin-top: 16px;
+}
+.land-steps {
+  list-style: none;
+}
+.land-step {
+  min-height: 68vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 16px;
+  padding: 32px 0;
+  opacity: 0.3;
+  transition: opacity 0.5s var(--ease);
+}
+.land-step-on {
+  opacity: 1;
+}
+.land-step-photo {
+  display: none;
+}
+.land-step-time {
+  font: 500 48px/1 var(--mono);
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+.land-step-heading {
+  font-size: 30px;
+  line-height: 36px;
+  letter-spacing: -0.012em;
+}
+.land-step-text {
+  max-width: 440px;
+  font-size: 16px;
+  line-height: 24px;
+  color: var(--muted);
+}
+
+/* The frame: the four hours stacked, the canvas for the dot wave, grain, and the clock. */
+.land-frame {
+  position: sticky;
+  top: 88px; /* under the site's 64 px header */
+  height: min(720px, calc(100vh - 128px));
+  border-radius: 24px;
+  overflow: hidden;
+  background: #14151a;
+  box-shadow:
+    var(--ring),
+    0 24px 64px rgba(30, 40, 60, 0.14);
+}
+/* object-position must stay equal to FRAME_CROP in landing/story.ts: the wave draws the same crop. */
+.land-frame-photo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 68% 60%;
+  opacity: 0;
+  filter: var(--land-photo-filter);
+}
+.land-frame-shown {
+  opacity: 1;
+}
+/* Dusk and night: the last hour dims while the dots glow on it, like windows lighting up. */
+.land-frame-glow .land-frame-shown {
+  opacity: 0.22;
+  transition: opacity 0.45s var(--ease);
+}
+.land-dots {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+}
+.land-dots canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  filter: var(--land-photo-filter);
+}
+.land-frame-glow .land-dots {
+  filter: drop-shadow(0 0 5px rgba(242, 194, 122, 0.6));
+}
+.land-frame .land-grain {
+  z-index: 3;
+}
+/* A shade in the corner, so the white clock reads on the brightest sky. */
+.land-frame::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  z-index: 3;
+  width: 70%;
+  height: 42%;
+  pointer-events: none;
+  background: radial-gradient(
+    100% 100% at 0% 100%,
+    rgba(10, 12, 18, 0.55),
+    transparent 70%
+  );
+}
+.land-clock {
+  position: absolute;
+  left: 24px;
+  bottom: 24px;
+  z-index: 4;
+  color: #fff;
+}
+.land-clock-face {
+  display: block;
+  width: 260px;
+  height: auto;
+}
+.land-clock-face circle {
+  fill: #fff;
+  opacity: 0.14;
+  transition: opacity 0.45s var(--ease);
+}
+.land-clock-face .land-clock-on {
+  opacity: 1;
+}
+.land-clock-hour {
+  display: block;
+  margin-top: 12px;
+  font: 500 12px/16px var(--mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-shadow: 0 1px 12px rgba(0, 0, 0, 0.5);
+}
+.land-grain {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  mix-blend-mode: multiply;
+}
+.land-grain-light {
+  mix-blend-mode: screen;
+  opacity: 0.55;
+}
+
+/* ---------- the product UI of each moment (Moments.tsx): pictures, nothing to press ---------- */
+.land-ui {
+  max-width: 440px;
+  padding: 12px 16px;
+}
+.land-ui-title {
+  margin-top: 4px;
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 500;
+}
+.land-ui-meta {
+  color: var(--muted);
+}
+.land-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font: 500 12px/16px var(--mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--blue);
+}
+.land-live-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--blue);
+  animation: land-breathe 2.4s var(--ease) infinite;
+}
+@keyframes land-breathe {
+  50% {
+    opacity: 0.45;
+    transform: scale(0.8);
+  }
+}
+.land-mention {
+  color: var(--blue);
+  font-weight: 500;
+}
+/* A text field shows one line, like the real one. */
+.land-ui-input {
+  padding: 8px 16px;
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  background: var(--paper);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.land-ui-similar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  margin-top: 12px;
+  color: var(--muted);
+}
+.land-ui-similar svg {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  color: var(--blue);
+}
+.land-ui-similar b {
+  color: var(--ink);
+  font-weight: 500;
+}
+.land-turn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-radius: 12px;
+  background: var(--blue);
+  color: var(--blue-ink);
+}
+.land-turn svg {
+  flex: none;
+  width: 24px;
+  height: 24px;
+}
+.land-turn-text {
+  flex: 1;
+  min-width: 0;
+}
+.land-turn-text b {
+  display: block;
+  font-size: 18px;
+  line-height: 28px;
+  font-weight: 600;
+}
+.land-turn-text span {
+  opacity: 0.85;
+}
+.land-turn-here {
+  flex: none;
+  background: var(--blue-ink);
+  color: var(--blue);
+}
+.land-faq-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font: 500 12px/16px var(--mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--blue);
+}
+.land-faq-head svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+}
+.land-faq-answer {
+  margin-top: 4px;
+  color: var(--muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.land-faq-also {
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--muted);
+}
+.land-faq-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 12px;
+}
+.land-faq-path {
+  min-width: 0;
+  font: 400 12px/16px var(--mono);
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.land-faq-open {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 500;
+  color: var(--blue);
+}
+.land-faq-open svg {
+  width: 14px;
+  height: 14px;
+}
+.land-ui-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 8px;
+  color: var(--muted);
+}
+.land-ui-stats b {
+  margin-right: 4px;
+  font: 500 20px/28px var(--mono);
+  color: var(--ink);
+}
+
+/* ---------- three numbers, three benefits ---------- */
+.land-facts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 40px;
+  list-style: none;
+  border-top: 1px solid var(--hairline);
+  border-bottom: 1px solid var(--hairline);
+}
+.land-fact {
+  padding: 32px 24px;
+  border-left: 1px solid var(--hairline);
+}
+.land-fact:first-child {
+  padding-left: 0;
+  border-left: 0;
+}
+.land-fact-figure {
+  display: block;
+  font: italic 400 96px/1 var(--serif);
+  letter-spacing: -0.02em;
+  color: var(--blue);
+}
+.land-fact-line {
+  display: block;
+  max-width: 280px;
+  margin-top: 16px;
+  font-size: 16px;
+  line-height: 24px;
+  color: var(--muted);
+}
+.land-benefits {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 32px;
+  margin-top: 48px;
+}
+.land-benefits h3 {
+  font-size: 18px;
+  line-height: 28px;
+}
+.land-benefits p {
+  margin-top: 8px;
+  font-size: 16px;
+  line-height: 24px;
+  color: var(--muted);
+}
+
+/* ---------- the misty sky band with the one sentence ---------- */
+.land-sky {
+  position: relative;
+  margin-top: 96px;
+  padding: 144px 48px;
+  overflow: hidden;
+  border-radius: 24px;
+}
+.land-sky-art {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.land-sky-top {
+  stop-color: var(--land-mist-top);
+}
+.land-sky-low {
+  stop-color: var(--land-mist-low);
+}
+.land-sky-clouds {
+  opacity: var(--land-cloud);
+}
+.land-sky-birds {
+  fill: none;
+  stroke: var(--land-bird);
+  stroke-width: 2;
+  stroke-linecap: round;
+  opacity: 0.7;
+}
+.land-sky-grain {
+  mix-blend-mode: multiply;
+}
+.land-sky p {
+  position: relative;
+  max-width: 880px;
+  font-size: 48px;
+  line-height: 1.1;
+  font-weight: 500;
+  letter-spacing: -0.022em;
+  color: var(--ink);
+}
+.land-sky .serif {
+  color: var(--blue);
+}
+/* Words light up as they rise into the window, where scrolling can drive an animation; elsewhere
+   they are simply lit. No script, and nothing moves with reduced motion. */
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .land-word {
+      display: inline-block;
+      animation: land-word-on linear both;
+      animation-timeline: view();
+      animation-range: cover 10% cover 40%;
+    }
+  }
+}
+@keyframes land-word-on {
+  from {
+    opacity: 0.3;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* ---------- before you host ---------- */
+.land-qa {
+  display: grid;
+  gap: 8px;
+  max-width: 760px;
+  margin-top: 32px;
+}
+.land-qa details {
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: var(--ring);
+}
+.land-qa summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  border-radius: 12px;
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 500;
+  list-style: none;
+  cursor: pointer;
+}
+.land-qa summary::-webkit-details-marker {
+  display: none;
+}
+.land-qa summary svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  color: var(--muted);
+  transition: transform 0.5s var(--ease);
+}
+.land-qa details[open] summary svg {
+  transform: rotate(180deg);
+}
+.land-qa details p {
+  padding: 0 16px 16px;
+  font-size: 16px;
+  line-height: 24px;
+  color: var(--muted);
+}
+
+/* ---------- the closing: after hours ---------- */
+.land-closing {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  min-height: 600px;
+  margin-top: 96px;
+  overflow: hidden;
+  border-radius: 24px;
+  background: #0e0f13;
+}
+.land-closing-photo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 68% 60%;
+}
+.land-closing-text {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 640px;
+  padding: 48px;
+}
+/* A slight colour fringe on the headline, like the photo's. */
+.land-closing h2 {
+  font-size: 60px;
+  line-height: 1;
+  letter-spacing: -0.025em;
+  color: #fff;
+  text-shadow:
+    -1.5px 0 rgba(255, 70, 90, 0.5),
+    1.5px 0 rgba(70, 150, 255, 0.55);
+}
+.land-closing h2 .serif {
+  color: var(--land-gold);
+}
+.land-closing p {
+  font-size: 18px;
+  line-height: 28px;
+  color: rgba(255, 255, 255, 0.82);
+}
+.land-closing-action {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+/* ---------- narrower windows ---------- */
+/* Below 900 px the frame has no room beside the steps: each step carries its own photo. */
+@media (max-width: 899px) {
+  .land-story {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .land-story-media {
+    display: none;
+  }
+  .land-step {
+    min-height: 0;
+    padding: 24px 0;
+    opacity: 1;
+  }
+  .land-step-photo {
+    display: block;
+    width: 100%;
+    height: auto;
+    aspect-ratio: 16 / 9;
+    max-height: 320px;
+    object-fit: cover;
+    object-position: 70% 60%;
+    border-radius: 16px;
+    background: var(--sunken);
+    filter: var(--land-photo-filter);
+  }
+}
+@media (max-width: 760px) {
+  .land-section {
+    padding-top: 64px;
+  }
+  .land-facts,
+  .land-benefits {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .land-fact {
+    padding: 24px 0;
+    border-left: 0;
+    border-top: 1px solid var(--hairline);
+  }
+  .land-fact:first-child {
+    border-top: 0;
+  }
+  .land-sky {
+    padding: 96px 24px;
+  }
+  .land-sky p {
+    font-size: 36px;
+    line-height: 40px;
+  }
+  .land-closing-text {
+    padding: 24px;
+  }
+  .land-closing h2 {
+    font-size: 44px;
+  }
+}
+/* app.css already stops every transition and animation; here the steps also stay lit. */
+@media (prefers-reduced-motion: reduce) {
+  .land-step {
+    opacity: 1;
+  }
+}
