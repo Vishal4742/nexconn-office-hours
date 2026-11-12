@@ -1,5 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "git": { "deploymentEnabled": { "slice/*": false } },
   "services": {
     "web": {
       "root": "web",
