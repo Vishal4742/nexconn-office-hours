@@ -3,7 +3,10 @@
 let loading: Promise<typeof import("./client")> | null = null;
 
 export function loadClient(): Promise<typeof import("./client")> {
-  loading ??= import("./client");
+  loading ??= import("./client").catch((failure: unknown) => {
+    loading = null; // the next call downloads it again
+    throw failure;
+  });
   return loading;
 }
 

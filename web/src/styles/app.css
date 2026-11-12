@@ -86,6 +86,10 @@ img {
 .skip:focus {
   top: 16px;
 }
+/* Focus is moved to the page after a change of page; the page itself needs no ring. */
+main:focus {
+  outline: none;
+}
 
 /* ---------- buttons and links ---------- */
 .btn {
@@ -571,6 +575,24 @@ img {
   width: 18px;
   height: 18px;
 }
+/* What the copy button just did, said under it for two seconds. */
+.copy {
+  position: relative;
+  display: inline-flex;
+}
+.copy-note {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 7;
+  padding: 4px 8px;
+  border-radius: 8px;
+  background: var(--ink);
+  color: var(--paper);
+  font-size: 12px;
+  line-height: 16px;
+  white-space: nowrap;
+}
 .chat {
   grid-area: chat;
   min-height: 0;
@@ -779,6 +801,17 @@ img {
   }
   .rh-brand .off {
     margin-left: auto;
+  }
+  /* The repo gets a line of its own, in full: a long name cut short could not be read anywhere. */
+  .rh-brand {
+    flex-wrap: wrap;
+    row-gap: 4px;
+  }
+  .rh-brand .repo {
+    order: 1;
+    flex-basis: 100%;
+    white-space: normal;
+    overflow-wrap: anywhere;
   }
   /* The band says the same thing, so the headline is kept for screen readers only. */
   .rh-title {

@@ -52,14 +52,6 @@ export function Room({ owner, repo }: RepoName) {
     };
   }, [owner, repo, loads]);
 
-  useEffect(() => {
-    const before = document.title;
-    document.title = `${owner}/${repo} · Office Hours`;
-    return () => {
-      document.title = before;
-    };
-  }, [owner, repo]);
-
   function handleRetry() {
     setPage({ status: "loading" });
     setLoads((count) => count + 1);
@@ -86,7 +78,8 @@ export function Room({ owner, repo }: RepoName) {
     <>
       <Header />
       {page.status === "loading" && (
-        <div className="wrap page" role="status" aria-label="Loading the room">
+        <div className="wrap page" role="status">
+          <span className="sr-only">Loading the room…</span>
           <div className="skel" />
         </div>
       )}
@@ -154,7 +147,7 @@ function MemberRoom({ project, groupId }: MemberRoomProps) {
           <span className="slash brand-name" aria-hidden="true">
             /
           </span>
-          <span className="repo">
+          <span className="repo" title={`${project.owner}/${project.repo}`}>
             {project.owner}/{project.repo}
           </span>
           <span className="off">Not live</span>

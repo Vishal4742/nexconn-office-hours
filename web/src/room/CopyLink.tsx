@@ -35,22 +35,23 @@ export function CopyLink({ path }: Props) {
     copy === "copied"
       ? "Link copied"
       : copy === "failed"
-        ? "Copying failed. The link is in the address bar."
+        ? "Couldn't copy. The link is in the address bar."
         : "";
   return (
-    <>
+    <span className="copy">
       <button
         type="button"
         className="icon-btn"
         onClick={handleCopy}
         aria-label="Copy the room's link"
-        title={said || "Copy the room's link"}
+        title="Copy the room's link"
       >
         {copy === "copied" ? <Check /> : <LinkIcon />}
       </button>
-      <span className="sr-only" role="status">
+      {/* Always in the page, so a screen reader hears the text when it changes. */}
+      <span className={said ? "copy-note" : "sr-only"} role="status">
         {said}
       </span>
-    </>
+    </span>
   );
 }

@@ -83,6 +83,7 @@ const hooks: ServiceHooks = {
 };
 
 let app: NCChatUIApplication | null = null;
+let startFailure: Error | null = null;
 
 /** Chat UI, once the SDK has started. The room uses it to open a channel. */
 export function getApp(): NCChatUIApplication | null {
@@ -99,6 +100,24 @@ function startOnce(config: {
   readonly area: string;
 }): NCChatUIApplication {
   if (app) return app;
+  // The engine can be started once per page. If Chat UI did not come up after it, starting
+  // again would start the engine a second time, so only a reload can help.
+  if (startFailure) throw startFailure;
+  try {
+    app = start(config);
+    return app;
+  } catch {
+    startFailure = new Error(
+      "The chat could not start. Reload the page to try again.",
+    );
+    throw startFailure;
+  }
+}
+
+function start(config: {
+  readonly appKey: string;
+  readonly area: string;
+}): NCChatUIApplication {
   NCEngine.initialize({
     appKey: config.appKey,
     areaCode: AREAS[config.area] ?? AreaCode.SG,
@@ -189,11 +208,13 @@ function startOnce(config: {
         messageListeners.forEach((listener) => listener(messages)),
     }),
   );
-  app = created;
   return created;
 }
 
 let connecting: Promise<void> | null = null;
+// Goes up each time the page leaves Nexconn. A connect that started before that has lost: its
+// connection, if it still gets one, is closed again.
+let leaves = 0;
 
 /**
  * Connects this page to Nexconn as the signed-in user. Safe to call from every page and as
@@ -201,6 +222,7 @@ let connecting: Promise<void> | null = null;
  */
 export function ensureConnected(): Promise<void> {
   connecting ??= (async () => {
+    const startedAt = leaves;
     set({ status: "connecting" });
     try {
       startOnce(await api.get<{ appKey: string; area: string }>("/api/config"));
@@ -212,6 +234,12 @@ export function ensureConnected(): Promise<void> {
           return result.isOk ? { ok: true } : { ok: false, code: result.code };
         },
       });
+      if (startedAt !== leaves) {
+        // Signed out while this was on its way (FR-AUTH-4).
+        if (outcome.ok) await NCEngine.disconnect();
+        set({ status: "idle" });
+        return;
+      }
       if (!outcome.ok) {
         throw new Error(
           `The chat service refused the connection (code ${outcome.code}).`,
@@ -219,6 +247,7 @@ export function ensureConnected(): Promise<void> {
       }
       set({ status: "connected" });
     } catch (error) {
+      if (startedAt !== leaves) return;
       connecting = null; // the next call may try again
       set({
         status: "failed",
@@ -234,6 +263,7 @@ export function ensureConnected(): Promise<void> {
 
 /** FR-AUTH-4: signing out leaves Nexconn too. */
 export async function disconnect(): Promise<void> {
+  leaves++;
   connecting = null;
   if (app) await NCEngine.disconnect();
   set({ status: "idle" });
