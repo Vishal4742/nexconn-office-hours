@@ -338,3 +338,37 @@ func TestProjectOf(t *testing.T) {
 		}
 	}
 }
+
+func TestRolesComeFromTheTables(t *testing.T) {
+	pool := testDB(t)
+	people(t, pool)
+	s, ctx := New(pool), context.Background()
+	if _, _, err := s.CreateProject(ctx, Project{ID: "aaaa", GitHubID: 1001, Owner: "paperplane", Repo: "stash"}, "gh1"); err != nil {
+		t.Fatalf("CreateProject: %v", err)
+	}
+	if err := s.AddMember(ctx, "aaaa", "gh2"); err != nil {
+		t.Fatalf("AddMember: %v", err)
+	}
+
+	// NFR-SEC-2: a role is a row in members or maintainers, and nothing else.
+	for _, tt := range []struct {
+		name                   string
+		project, user          string
+		isMember, isMaintainer bool
+	}{
+		{"the registrant", "aaaa", "gh1", true, true},
+		{"someone who joined", "aaaa", "gh2", true, false},
+		{"a stranger", "aaaa", "gh3", false, false},
+		{"nobody", "aaaa", "", false, false},
+		{"a project that does not exist", "zzzz", "gh1", false, false},
+	} {
+		isMember, err := s.IsMember(ctx, tt.project, tt.user)
+		if err != nil || isMember != tt.isMember {
+			t.Errorf("%s: IsMember = %v, %v; want %v", tt.name, isMember, err, tt.isMember)
+		}
+		isMaintainer, err := s.IsMaintainer(ctx, tt.project, tt.user)
+		if err != nil || isMaintainer != tt.isMaintainer {
+			t.Errorf("%s: IsMaintainer = %v, %v; want %v", tt.name, isMaintainer, err, tt.isMaintainer)
+		}
+	}
+}
