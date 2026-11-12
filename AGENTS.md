@@ -8,7 +8,7 @@ Live rooms where open-source maintainers answer contributor questions one at a t
 - Stack: **Go server** in `server/` (Go 1.25, `net/http`, pgx, official Nexconn Go SDK) + **TypeScript UI** in `web/` (Vite + React, static). One Vercel project with Services.
 - Install: `go -C server mod download` · `npm --prefix web ci` · Dev: `bash tools/dev.sh` (loads `.env`, Go on :8080) + `npm --prefix web run dev` (:5173, proxies `/api`, `/auth`, `/p/*/faq` to Go). `server/` is the Go module root.
 - Checks: `gofmt -l server` · `go -C server vet ./...` · `go -C server test ./...` · `npm --prefix web run lint` · `npm --prefix web run typecheck` · `npm --prefix web test` · acceptance tests AT-1…AT-19 by hand on production
-- DB: `go -C server run ./cmd/migrate` (local `.env` points at a Neon `dev` branch; production only with `MIGRATE_DATABASE_URL`, before merging code that needs the schema)
+- DB: `go -C server run ./cmd/migrate` applies `server/migrations/*.sql` (local `.env` points at a Neon `dev` branch or a local Postgres; production only with `MIGRATE_DATABASE_URL`, before merging code that needs the schema). The store tests need a real Postgres: `TEST_DATABASE_URL='postgres://localhost:5432/officehours_test?sslmode=disable' go -C server test ./...` (skipped without it locally, required in CI)
 - Claude Code: start with `bash tools/claude.sh` (supermemory on); `/smoke` runs all checks
 - One port, production routing: `vercel dev -L` runs both services behind `vercel.json` (local only, no project link; it reads `.env`).
 
