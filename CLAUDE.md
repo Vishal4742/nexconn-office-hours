@@ -41,3 +41,4 @@ Append one line after every correction ("Update your CLAUDE.md so you don't make
 - A file's deletion is committed with the code that replaces it. `git add` fails on a path already removed with `git rm`, and a pushed commit is never rewritten: fix forward with a new commit. (own mistake, 2026-11-12)
 - Anything that grants a role is tied to an id that can't change hands (GitHub's repo id, never just a name). (own review, 2026-11-12)
 - A reviewer agent reads a tree nobody is editing: give it its own worktree, or hold the edits until it reports. (own mistake, 2026-11-12)
+- Merge only when every check of the pull request passed: read them all (`gh pr checks N --json name,state`), never a `tail` of the output. A tail hid a failed secret scan and #26 went into `main` red. A fake credential in a test is joined at run time, as the store's tests do. (own mistake, 2026-11-12)
