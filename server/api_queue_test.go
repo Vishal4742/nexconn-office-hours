@@ -288,7 +288,7 @@ func TestQueueRefusal(t *testing.T) {
 		{queue.ErrBadStatus, http.StatusConflict, "any more"},
 		{store.ErrSessionLive, http.StatusConflict, "already live"}, // FR-SESS-2
 		{queue.ErrNotImplemented, http.StatusNotImplemented, "isn't built yet"},
-		{store.ErrNotBuilt, http.StatusNotImplemented, "isn't built yet"},
+		{store.ErrNoSession, http.StatusNotFound, "no such session"},
 		{fmt.Errorf("store: apply: %w", queue.ErrNotYours), http.StatusForbidden, "Only the person who raised"},
 	} {
 		var refusal *guard.Error
@@ -411,7 +411,7 @@ func TestQueuePage(t *testing.T) {
 		a.queue.err = errors.New("connection reset")
 		res, body = call(a.mux, "GET", path, "", a.as(t, askerID))
 		refused(t, "store down", res, body, http.StatusInternalServerError, "Something went wrong")
-		a.queue.err = store.ErrNotBuilt
+		a.queue.err = queue.ErrNotImplemented
 		res, body = call(a.mux, "GET", path, "", a.as(t, askerID))
 		refused(t, "not built", res, body, http.StatusNotImplemented, "isn't built yet")
 	})

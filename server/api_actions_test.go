@@ -169,7 +169,7 @@ func TestActionRoutes(t *testing.T) {
 			{"/api/hands/102/away", queue.ErrNotAnswering, http.StatusConflict, "not being answered"},
 			{"/api/hands/101/merge", queue.ErrBadStatus, http.StatusConflict, "any more"},
 			{"/api/hands/102/merge", queue.ErrNotAnswering, http.StatusConflict, "not being answered"},
-			{"/api/hands/101/skip", store.ErrNotBuilt, http.StatusNotImplemented, "isn't built yet"},
+			{"/api/hands/101/skip", queue.ErrNotImplemented, http.StatusNotImplemented, "isn't built yet"},
 			{"/api/hands/101/skip", errors.New("connection reset"), http.StatusInternalServerError, "Something went wrong"},
 		} {
 			a := actionApp(t)
@@ -472,7 +472,7 @@ func TestDoneHand(t *testing.T) {
 		}{
 			{queue.ErrNotAnswering, http.StatusConflict, "not being answered"},
 			{queue.ErrNotLive, http.StatusConflict, "no live session"},
-			{store.ErrNotBuilt, http.StatusNotImplemented, "isn't built yet"},
+			{queue.ErrNotImplemented, http.StatusNotImplemented, "isn't built yet"},
 			{errors.New("connection reset"), http.StatusInternalServerError, "Something went wrong"},
 		} {
 			a = actionApp(t)

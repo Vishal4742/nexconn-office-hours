@@ -155,6 +155,8 @@ func TestWebAddress(t *testing.T) {
 		" https://example.com":                false,
 		"https://exa mple.com":                false,
 		"https://example.com/\x00":            false,
+		"https://github.com@evil.example/x":   false, // the host is evil.example
+		"https://user:pw@example.com":         false,
 	} {
 		if got := webAddress(addr); got != want {
 			t.Errorf("NFR-SEC-6: webAddress(%q) = %v, want %v", addr, got, want)
@@ -253,10 +255,17 @@ func TestEntryPage(t *testing.T) {
 		if strings.HasPrefix(body, "\n") || !strings.HasSuffix(body, "https://officehours.example/p/PaperPlane/Stash/faq/retry-only-on-5xx") {
 			t.Errorf("body = %q", body)
 		}
-		long := testEntry()
-		long.Question = strings.Repeat("é", 20000)
-		if got := len([]rune(Entry{Site: testSite, FAQEntry: long}.issueBody())); got > issueBodyMax {
-			t.Errorf("an issue body of %d characters, want at most %d: GitHub cuts an address that is too long", got, issueBodyMax)
+		// Counted as written in the address: a letter outside ASCII takes several characters there.
+		for _, letter := range []string{"a", "é", "語", "🙂"} {
+			long := testEntry()
+			long.Question = strings.Repeat(letter, 20000)
+			body := Entry{Site: testSite, FAQEntry: long}.issueBody()
+			if got := len(url.QueryEscape(body)); got > issueBodyMax {
+				t.Errorf("FR-FAQ-5: %q × 20000: an issue body of %d characters in the address, want at most %d: GitHub turns away an address that is too long", letter, got, issueBodyMax)
+			}
+			if !strings.HasSuffix(body, "https://officehours.example/p/PaperPlane/Stash/faq/retry-only-on-5xx") || !strings.Contains(body, "…") {
+				t.Errorf("%q × 20000: the body must end with the answer's address and show it was cut: %q…", letter, body[:40])
+			}
 		}
 	})
 
