@@ -3,7 +3,7 @@
 import { GroupChannelIdentifier } from "@nexconn/chat";
 
 import { ensureConnected, getApp, getConnection, onMessages } from "./client";
-import { openWhenReady } from "./connect";
+import { inTurn, openWhenReady } from "./connect";
 import { membersOf, rememberRoom, strangers, userProfiles } from "./roster";
 import type { Person } from "./roster";
 
@@ -42,21 +42,36 @@ export async function openRoom(
 
   // Chat UI copies names and avatars the moment a room is selected and never refreshes that
   // copy on its own, so it must know everyone before the channel opens (docs/ARCHITECTURE.md §4).
+  let asks = 0;
   const tellChatUi = async () => {
-    rememberRoom(room.groupId, room.name, await room.loadMembers());
+    const ask = ++asks;
+    const members = await room.loadMembers();
+    // An older answer that arrives after a newer one would take the newest people out again.
+    if (ask !== asks) return;
+    rememberRoom(room.groupId, room.name, members);
     const ids = membersOf(room.groupId).map((member) => member.userId);
     userProfiles(ids).forEach((profile) => app.updateUserProfile(profile));
   };
   await tellChatUi();
+  if (signal.aborted) return () => {};
 
-  const opened = await openWhenReady(
-    () => app.openChannel(new GroupChannelIdentifier(room.groupId), true),
-    pause,
+  // Rooms are opened one at a time, and a page that was left stops trying: otherwise the room
+  // of the page before could end up under this one.
+  const hasLeft = () => signal.aborted;
+  const opened = await inTurn(async () =>
+    hasLeft()
+      ? null
+      : openWhenReady(
+          () => app.openChannel(new GroupChannelIdentifier(room.groupId), true),
+          pause,
+          20,
+          hasLeft,
+        ),
   );
+  if (!opened || hasLeft()) return () => {};
   if (!opened.isOk) {
     throw new Error(`The room could not be opened (code ${opened.code}).`);
   }
-  if (signal.aborted) return () => {};
 
   const toast = document.createElement("nc-toast-provider");
   const list: HTMLElement & { requestUpdate?: () => void } =

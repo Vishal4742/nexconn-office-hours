@@ -113,18 +113,21 @@ function Projects() {
       </p>
       <div className="dash">
         <RegisterForm onRegistered={handleRegistered} />
-        {added && (
-          <p className="notice" role="status">
-            <span>
-              {added.wasListed
-                ? `${added.project.owner}/${added.project.repo} already has a room, and it is in your list.`
-                : `${added.project.owner}/${added.project.repo} has a room now.`}
-            </span>
-            <Link href={roomPath(added.project)} className="btn ghost sm">
-              Open the room
-            </Link>
-          </p>
-        )}
+        {/* Always in the page, so a screen reader hears the notice when it appears. */}
+        <div role="status">
+          {added && (
+            <p className="notice">
+              <span>
+                {added.wasListed
+                  ? `${added.project.owner}/${added.project.repo} already has a room, and it is in your list.`
+                  : `${added.project.owner}/${added.project.repo} has a room now.`}
+              </span>
+              <Link href={roomPath(added.project)} className="btn ghost sm">
+                Open the room
+              </Link>
+            </p>
+          )}
+        </div>
         <ProjectList list={list} onRetry={handleRetry} />
       </div>
     </div>
@@ -231,11 +234,8 @@ type ProjectListProps = {
 function ProjectList({ list, onRetry }: ProjectListProps) {
   if (list.status === "loading") {
     return (
-      <div
-        className="projects"
-        role="status"
-        aria-label="Loading your projects"
-      >
+      <div className="projects" role="status">
+        <span className="sr-only">Loading your projects…</span>
         <div className="skel" />
         <div className="skel" />
       </div>

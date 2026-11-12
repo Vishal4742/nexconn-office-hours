@@ -73,8 +73,12 @@ export function ChatRoom({ groupId, owner, repo, onMembers }: Props) {
 
   return (
     <section className="chat" aria-label="Chat">
+      {/* Always in the page, so a screen reader hears it; the visible line is below. */}
+      <span className="sr-only" role="status">
+        {opening.status === "opening" ? "Opening the room…" : ""}
+      </span>
       {opening.status === "opening" && (
-        <p className="chat-note" role="status">
+        <p className="chat-note" aria-hidden="true">
           Opening the room…
         </p>
       )}

@@ -28,6 +28,20 @@ export function matchRoute(pathname: string): Route {
   return isProject ? { name: "room", owner, repo } : { name: "notFound" };
 }
 
+/** What the browser tab is called on a page (NFR-A11Y-1). */
+export function titleFor(route: Route): string {
+  switch (route.name) {
+    case "landing":
+      return "Office Hours";
+    case "dashboard":
+      return "Your projects · Office Hours";
+    case "room":
+      return `${route.owner}/${route.repo} · Office Hours`;
+    case "notFound":
+      return "Page not found · Office Hours";
+  }
+}
+
 const listeners = new Set<() => void>();
 
 function subscribe(listener: () => void): () => void {
@@ -41,7 +55,8 @@ function subscribe(listener: () => void): () => void {
 
 /** Goes to another page of the app without a reload. */
 export function navigate(to: string): void {
-  window.history.pushState(null, "", to);
+  // A link to the page you are on must not add a history entry: Back would seem to do nothing.
+  if (to !== window.location.pathname) window.history.pushState(null, "", to);
   window.scrollTo(0, 0);
   listeners.forEach((listener) => listener());
 }

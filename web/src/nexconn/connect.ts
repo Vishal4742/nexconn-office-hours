@@ -32,18 +32,34 @@ export type OpenOutcome = { readonly isOk: boolean; readonly code: number };
 
 /**
  * Opens a channel, and tries again for as long as Chat UI says its channel list is not ready.
- * Any other refusal is returned at once. `pause` waits between two tries.
+ * Any other refusal is returned at once. `pause` waits between two tries, and `shouldStop` ends
+ * the trying early: the page that asked for the room has been left.
  */
 export async function openWhenReady<T extends OpenOutcome>(
   open: () => Promise<T>,
   pause: () => Promise<void>,
   attempts = 20,
+  shouldStop: () => boolean = () => false,
 ): Promise<T> {
   let outcome = await open();
   for (let tries = 1; tries < attempts; tries++) {
     if (outcome.isOk || outcome.code !== CHANNEL_LIST_NOT_READY) break;
     await pause();
+    if (shouldStop()) break;
     outcome = await open();
   }
   return outcome;
+}
+
+let lastInLine: Promise<unknown> = Promise.resolve();
+
+/**
+ * Runs tasks one after another, in the order they were given, whatever the outcome of each.
+ * Chat UI has a single opened channel: two opens that overlap would leave whichever answered
+ * last, which may be the room of a page that is gone.
+ */
+export function inTurn<T>(task: () => Promise<T>): Promise<T> {
+  const mine = lastInLine.then(task);
+  lastInLine = mine.catch(() => undefined);
+  return mine;
 }

@@ -1,7 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import type { Connection } from "../nexconn/client";
 import { loadClient } from "../nexconn/lazy";
+
+type Client = Awaited<ReturnType<typeof loadClient>>;
 
 /**
  * Connects the signed-in page to Nexconn (FR-AUTH-3) and says so when the connection is down.
@@ -9,18 +11,20 @@ import { loadClient } from "../nexconn/lazy";
  */
 export function ConnectionBanner() {
   const [connection, setConnection] = useState<Connection>({ status: "idle" });
+  const [downloads, setDownloads] = useState(0);
+  const clientRef = useRef<Client | null>(null);
 
   useEffect(() => {
     let isCurrent = true;
     let unsubscribe = () => {};
-    let leave = () => {};
     loadClient().then(
       (client) => {
         if (!isCurrent) return;
+        clientRef.current = client;
         unsubscribe = client.subscribe(() =>
           setConnection(client.getConnection()),
         );
-        leave = () => void client.disconnect();
+        setConnection(client.getConnection());
         void client.ensureConnected();
       },
       () => {
@@ -35,32 +39,33 @@ export function ConnectionBanner() {
     return () => {
       isCurrent = false;
       unsubscribe();
-      leave();
+      void clientRef.current?.disconnect();
+      clientRef.current = null;
     };
-  }, []);
+  }, [downloads]);
 
-  if (connection.status === "reconnecting") {
-    return (
-      <p className="banner" role="status">
-        Reconnecting to the chat…
-      </p>
-    );
+  function handleRetry() {
+    // Two things can have failed: the connection, or the download of the chat's code itself.
+    if (clientRef.current) void clientRef.current.ensureConnected();
+    else setDownloads((count) => count + 1);
   }
-  if (connection.status === "failed") {
-    return (
-      <p className="banner" role="alert">
-        <span>{connection.message}</span>
-        <button
-          type="button"
-          className="btn ghost sm"
-          onClick={() =>
-            void loadClient().then((client) => client.ensureConnected())
-          }
-        >
-          Try again
-        </button>
-      </p>
-    );
-  }
-  return null;
+
+  return (
+    <>
+      {/* Always in the page, so a screen reader hears the text when it appears. */}
+      <div role="status">
+        {connection.status === "reconnecting" && (
+          <p className="banner">Reconnecting to the chat…</p>
+        )}
+      </div>
+      {connection.status === "failed" && (
+        <p className="banner" role="alert">
+          <span>{connection.message}</span>
+          <button type="button" className="btn ghost sm" onClick={handleRetry}>
+            Try again
+          </button>
+        </p>
+      )}
+    </>
+  );
 }
