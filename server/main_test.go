@@ -246,3 +246,21 @@ func TestOpenNexconn(t *testing.T) {
 		t.Fatalf("with credentials: openNexconn = %v, %v; want a client", c, err)
 	}
 }
+
+func TestThePhaseZeroTestRoutesAreGone(t *testing.T) {
+	// Until the real room existed, SPIKE=1 on a local APP_URL opened a token endpoint for two test
+	// users, and a probe set a test cookie. Sign-in and the room replaced both (plan decision 10).
+	t.Setenv("SPIKE", "1")
+	t.Setenv("APP_URL", "http://localhost:5173")
+	mux := newMux(configFromEnv(), deps{tokens: &fakeIssuer{}})
+	for _, path := range []string{"/api/spike/token?user=ohspikea", "/api/spike/token?user=ohspikeb", "/api/probe/cookie"} {
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, httptest.NewRequest("GET", path, nil))
+		if rec.Code != http.StatusNotFound {
+			t.Errorf("GET %s: status %d, want 404", path, rec.Code)
+		}
+		if strings.Contains(rec.Body.String(), "tok_") || len(rec.Result().Cookies()) != 0 {
+			t.Errorf("GET %s still hands out a token or a cookie: %q", path, rec.Body.String())
+		}
+	}
+}
