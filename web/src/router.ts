@@ -5,7 +5,6 @@ export type Route =
   | { readonly name: "landing" }
   | { readonly name: "dashboard" }
   | { readonly name: "room"; readonly owner: string; readonly repo: string }
-  | { readonly name: "spike" }
   | { readonly name: "notFound" };
 
 // The same patterns as the server (NFR-SEC-3). Here they only spare a request that would be refused.
@@ -21,7 +20,6 @@ export function matchRoute(pathname: string): Route {
   const path = pathname.length > 1 ? pathname.replace(/\/$/, "") : pathname;
   if (path === "/") return { name: "landing" };
   if (path === "/dashboard") return { name: "dashboard" };
-  if (path === "/spike") return { name: "spike" };
 
   const parts = path.split("/");
   const [, prefix, owner, repo] = parts;
