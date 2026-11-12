@@ -11,6 +11,8 @@ export type Route =
       readonly owner: string;
       readonly repo: string;
     }
+  /** Development only: the room's parts from fixtures (pages/DevRoom.tsx). */
+  | { readonly name: "devRoom" }
   | { readonly name: "notFound" };
 
 // The same patterns as the server (NFR-SEC-3). Here they only spare a request that would be refused.
@@ -22,11 +24,15 @@ export function isRepoName(owner: string, repo: string): boolean {
   return OWNER.test(owner) && REPO.test(repo) && repo !== "." && repo !== "..";
 }
 
-export function matchRoute(pathname: string): Route {
+export function matchRoute(
+  pathname: string,
+  isDev: boolean = import.meta.env.DEV,
+): Route {
   const path = pathname.length > 1 ? pathname.replace(/\/$/, "") : pathname;
   if (path === "/") return { name: "landing" };
   if (path === "/dashboard") return { name: "dashboard" };
   if (path === "/stats") return { name: "stats" };
+  if (path === "/dev/room" && isDev) return { name: "devRoom" };
 
   // /p/owner/repo is the room and /p/owner/repo/stats its numbers. /p/owner/repo/faq… never
   // gets here: the Go server renders those pages.
@@ -53,6 +59,8 @@ export function titleFor(route: Route): string {
       return "In numbers · Office Hours";
     case "projectStats":
       return `${route.owner}/${route.repo} in numbers · Office Hours`;
+    case "devRoom":
+      return "Preview · Office Hours";
     case "notFound":
       return "Page not found · Office Hours";
   }
