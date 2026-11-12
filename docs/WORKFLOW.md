@@ -46,7 +46,7 @@ Something goes sideways → stop and re-plan. Same error 3 times → stop, write
 
 ## 6. Definition of done (per slice)
 - [ ] Its SRS IDs are implemented, and their tests pass
-- [ ] `gofmt -l server` is empty; `go -C server vet ./...` and `go -C server test ./...` pass; in `web/`: `npm run lint`, `npx tsc --noEmit`, `npm test`, `npm run build` pass (output in notes)
+- [ ] `gofmt -l server` is empty; `go -C server vet ./...` and `go -C server test ./...` pass; in `web/`: `npm run lint`, `npm run typecheck`, `npm test`, `npm run build` pass (output in notes)
 - [ ] Every mutation goes through `server/guard` (Origin + JSON + session + role) and validates its input
 - [ ] OH:\* messages are trusted only from `oh_bot`; user text is rendered as text
 - [ ] No secret in code, logs, client bundle or chat (`git grep -nE 'sk-|ghp_|NEXCONN_APP_SECRET='`)

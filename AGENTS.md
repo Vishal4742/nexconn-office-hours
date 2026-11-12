@@ -7,10 +7,10 @@ Live rooms where open-source maintainers answer contributor questions one at a t
 ## Commands
 - Stack: **Go server** in `server/` (Go 1.25, `net/http`, pgx, official Nexconn Go SDK) + **TypeScript UI** in `web/` (Vite + React, static). One Vercel project with Services.
 - Install: `go -C server mod download` · `npm --prefix web ci` · Dev: `bash tools/dev.sh` (loads `.env`, Go on :8080) + `npm --prefix web run dev` (:5173, proxies `/api`, `/auth`, `/p/*/faq` to Go). `server/` is the Go module root.
-- Checks: `gofmt -l server` · `go -C server vet ./...` · `go -C server test ./...` · `npm --prefix web run lint` · `npx --prefix web tsc --noEmit` · `npm --prefix web test` · acceptance tests AT-1…AT-19 by hand on production
+- Checks: `gofmt -l server` · `go -C server vet ./...` · `go -C server test ./...` · `npm --prefix web run lint` · `npm --prefix web run typecheck` · `npm --prefix web test` · acceptance tests AT-1…AT-19 by hand on production
 - DB: `go -C server run ./cmd/migrate` (local `.env` points at a Neon `dev` branch; production only with `MIGRATE_DATABASE_URL`, before merging code that needs the schema)
 - Claude Code: start with `bash tools/claude.sh` (supermemory on); `/smoke` runs all checks
-(Commands become real in P0; until then they're the target.)
+- One port, production routing: `vercel dev -L` runs both services behind `vercel.json` (local only, no project link; it reads `.env`).
 
 ## Hard rules
 - **Judging is 50% "does it work and feel good".** Finish and polish one flow before adding features. Respect the freeze (Nov 19 10:00 IST).

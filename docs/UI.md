@@ -6,8 +6,11 @@
 **References are for principles, never for layouts** (owner, 2026-11-12: "do not do exact copy"). Two sources:
 - **The owner's Pinterest board "refrence design"** (11 pins on 2026-11-12). What they share: an atmospheric image plus a deliberate graphic treatment over it (film grain, a dot-matrix overlay, RGB colour fringing, a painted brush-stroke reveal), small editorial labels, glass panels over imagery, and a sans headline with one italic serif word.
 - **A mentor's reference, openvenue.xyz.** What we take: the story is told by scrolling, big confident numbers, and real product UI shown in context.
+- **Two X posts from the owner (2026-11-12):** a tower whose window shutters open and close to draw a picture across the facade while the sky goes from pink dusk to amber night (Brice, three.js + WebGPU), and flowers drawn as a grid of glowing coloured dots on black (matthew hamilton, plain HTML). What they share: a picture made of many small units that each switch on, and light that carries the mood. What we take: both back the dot treatment we already have. The dots can carry the photo's colour and glow on the night frames, and they can switch on in a wave instead of all growing at once.
 
-Not taken from either (these would be copies): a top announcement bar, a dark pill nav, a photo that shrinks while the headline splits, a ticker, a bento grid with dot charts, torn-paper edges, a diagonal brush window, poster lettering.
+Not taken from the X posts: the 3D tower, the flowers, three.js or WebGPU (a heavy dependency for a page judged on running smoothly).
+
+Not taken from the first two (these would be copies): a top announcement bar, a dark pill nav, a photo that shrinks while the headline splits, a ticker, a bento grid with dot charts, torn-paper edges, a diagonal brush window, poster lettering.
 
 **Our own concept:** maintainers do this in their evenings, so the landing follows one session by the clock. The same scene (a desk, a lit lamp and an empty chair on a meadow) moves from afternoon to golden hour, dusk and night as you scroll, and each hour shows the real product UI for that moment: 17:00 doors open · 17:04 a hand goes up · 17:12 it's your turn · 17:31 answered once · 17:45 last call. **The room speaks the same language as the landing** (owner, 2026-11-12: "hero ok but room is still old design"): the room is the hero's composition made useful: the session as a headline on the left, and on the right a tall photo of the scene, lit by the session's clock, with the queue floating over its sky as glass.
 
@@ -18,9 +21,9 @@ Not taken from either (these would be copies): a top announcement bar, a dark pi
 - **Room imagery:** four more photos of the same scene in portrait (864 × 1536: open sky on top, the desk about three quarters down, meadow at the bottom), made for the room's queue panel: `panel-day.webp`, `panel-golden.webp`, `panel-dusk.webp`, `panel-night.webp` (42–79 KB each). Copy these into `web/public/` too. Eight Figma AI generations in total, all first tries.
 - **Three treatments, one per section, each with a reason:**
   1. **Hero: painted reveal.** The afternoon photo shows through a brush-painted swath on the paper (an SVG mask: 75 thin bristle rows with ragged ends, slightly roughened). Glass queue cards overlap its edge.
-  2. **Story: dots.** The session clock is a 5×7 dot-matrix display. When the hour changes, the next photo arrives as growing dots over the last one (a CSS mask on a registered `--dot` property), then the picture is whole again. Dots stand for the live moment being recorded.
+  2. **Story: dots.** The session clock is a 5×7 dot-matrix display. When the hour changes, the next photo switches on dot by dot in a wave that spreads out from the lamp (drawn on a canvas by `dotWave`, 1.4 s), then the picture is whole again. On the dusk and night frames the last photo dims first and the dots carry a lamp-gold glow, like windows lighting up. With reduced motion the photo just swaps. Dots stand for the live moment being recorded.
   3. **Closing: after hours.** The night photo with RGB fringing and light grain, a slight colour fringe on the headline, and "Thursday." in lamp gold.
-- **Editorial details:** small mono labels (`Nº 018`, `[ 3 waiting ]`, `fig. 01 · 17:00`, `archive by @mia-k`, `[ 001 / 003 ]`); "once." sits in a blue selection box with handles.
+- **Details:** "once." sits in a blue selection box with handles. **No decorative labels on the landing** (owner, 2026-11-12): no issue-number strip in the header (`Nº 018 · … · live now`), no figure captions (`fig. 01 · 17:00`), no section counters (`[ 001 / 003 ]`, `( 01 )`), no corner credits, and no mock queue cards floating over the hero photo. The photo stands alone. Mono labels stay where they carry real state: inside the room (`Now answering`, `Waiting [ 3 in line ]`), on the FAQ header (repo and answer count) and the story's clock.
 - **Surfaces:** flat cards with a shadow ring; one glass style for sheets, the "your turn" banner and cards over photos. Pill buttons. Radius 12 (cards) / 24 (photo frames) / 999 (buttons).
 - **Motion (off with reduced motion):** queue items slide to their new place (FLIP, 250 ms); "It's your turn" pulses twice and stops; the live dot breathes; on the landing the story frame stays pinned while steps scroll, photos change with the dot reveal, and clock dots flip.
 
@@ -105,24 +108,23 @@ The first version (three plain columns) and the second (a thin painted strip in 
 
 ### S1 landing
 ```
- Office Hours            ● Nº 018 · THURSDAY OFFICE HOURS · LIVE NOW        Sign in  [ Host office hours ]
+ Office Hours                                                                Sign in  [ Host office hours ]
  ──────────────────────────────────────────────────────────────────────────────────────────────────────────
-  [ open source, answered live ]                ┌ now answering ┐
-  Answer every question                         │ @diego-ruiz…  │▓▓▓▓▓▓▓▓ afternoon photo, shown through
-  ⌜once.⌟  (blue selection box)                 └ 2 ahead · 18 here ▓▓▓▓▓ a painted swath on the paper ▓▓
-  Live office hours for your open source…                 ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓ desk + lamp + chair ▓▓▓▓▓▓▓
-  [ Host office hours for your repo ]  See a live room →   fig. 01 · 17:00, the desk is open
+  Answer every question                         ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓ afternoon photo, shown through
+  ⌜once.⌟  (blue selection box)                 ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓ a painted swath on the paper,
+  Live office hours for your open source…       ▓▓▓▓▓ desk + lamp + chair ▓▓▓ nothing on top of it
+  [ Host office hours for your repo ]  See a live room →
  ──────────────────────────────────────────────────────────────────────────────────────────────────────────
-  [ 001 / 003 ] One session, hour by hour
+  Forty five minutes, one question at a time.
   17:00 Doors open      + session card          ┌──────────────────────────────┐  pinned photo frame:
   17:04 A hand goes up  + suggestion            │  afternoon → golden → dusk   │  changes with a dot reveal
   17:12 It's your turn  + banner                │  → night                     │
   17:31 Answered once   + FAQ card              │  ⣿⣿ 17:12 (dot-matrix clock) │
   17:45 Last call       + ended card            └──────────────────────────────┘
  ──────────────────────────────────────────────────────────────────────────────────────────────────────────
-  [ 002 / 003 ] Why it works:  ≤1s · 1× · 0 (big serif numbers) + three short benefits
+  Made for people who maintain in their evenings:  ≤1s · 1× · 0 (big serif numbers) + three short benefits
   misty sky band: "The same question should never cost you two evenings…" (words light up on scroll)
-  [ 003 / 003 ] Questions (7, plain question and answer)
+  Before you host: 7 questions, plain question and answer
   night photo: "See you Thursday." + both buttons            footer
 ```
 One primary action (Host office hours for your repo), repeated in the closing. On phones each story step carries its own photo and the pinned frame is hidden.
@@ -154,8 +156,11 @@ Sources: `docs.nexconn.ai/chatui-web/*.md`, `github.com/NexconnAI-Dev/nexconn-ch
 - The chat has no CSS custom properties (only 3 channel-list vars). Open shadow DOM, no `::part`. Hard-coded: white message list, header, input box, send button (`#0047FF` on `#ECF1FF`). **No dark mode.** The font family inherits from the host; sizes are fixed (12/14/16).
 - Bubbles: `app.setMessageBubbleConfig({ ...app.cloneMessageBubbleConfig(), redius, layout, backgroundColorForMyself, backgroundColorForOthers, textColorForMyself, textColorForOthers })` before `ready()`. Colours are hex integers (no alpha). Avatars are 32 px, every bubble has its own name/time line, and there is **no grouping**.
 - Custom bubbles: `registerCustomMessages([{ messageType, isPersisted, isCounted, digest, component: { tagName, elementClass } }])` → tag `nc-c-<tagName>`, receives `.message`. It sits inside `nc-message-bubble` (bubble colour + radius, `max-width: 70%`, overflow hidden). Style it with Lit `static styles`, since page CSS doesn't reach it.
-- `nc-channel-detail-provider` always draws its own 70 px header (no switch). The docs list `nc-message-list-provider` + `nc-input-provider` as mountable on their own: **the P0 spike tries mounting those two directly** (this drops their header). Don't use `setChannelBarSwitch(false)`: it only hides the list's title bar, and only at ≤ 768 px.
-- The channel detail has `min-width: 600px` (350 px in mobile mode, which turns on when the **viewport** is ≤ 768 px). Supported browsers: Chrome 68+, Safari 13+, Edge 100+. Portrait mobile is not a supported target.
+- `nc-channel-detail-provider` always draws its own 70 px header (no switch), and on a phone that header gets a back arrow that leads to a channel list we don't have. **Confirmed in the P0 spike (2026-11-12): the room mounts `nc-toast-provider` + `nc-message-list-provider` + `nc-input-provider` itself**, after `app.openChannel()`, with `.model = app.getOpenedChannel()` on the input. No header, and the room draws its own. Don't use `setChannelBarSwitch(false)`: it only hides the list's title bar, and only at ≤ 768 px.
+- The channel detail has `min-width: 600px` (350 px in mobile mode). Mounted as parts there is **no minimum width**: the list and input fit a 390 px viewport with no sideways scroll. Mobile mode turns on when the **viewport** is ≤ 768 px: the input loses its placeholder and the send button becomes an icon. Supported browsers: Chrome 68+, Safari 13+, Edge 100+. Portrait mobile is not a supported target, so a real phone is still to try.
+- Sender names and avatars are copied when the room opens and are not refreshed (`ARCHITECTURE.md` §4): the room must hand Chat UI its members before it opens, or people show as raw ids. My own messages show a time and no name.
+- A muted member's message stays in the list with a small red "!" and no reason. The room should say "You are muted until 14:05" above the input and disable it, since our server knows.
+- The first connection of a visit takes 1.2 to 1.5 s (5 s once) and history arrives a moment later: the chat card needs a loading state.
 - Input menu: `cloneInputMenu()` → edit `items` → `setInputMenu()`. Ids: `EMOJI | IMAGES | FILES | PHOTO | PLUS`. Language `en_US` is the default; `registerLanguagePack` rewrites any string.
 
 ### Decisions this forces (owner-approved 2026-11-12)
@@ -163,7 +168,7 @@ Sources: `docs.nexconn.ai/chatui-web/*.md`, `github.com/NexconnAI-Dev/nexconn-ch
 2. **The room is light only** (Chat UI has none, and a white chat inside a dark shell looks broken). Landing and FAQ pages also get a dark mode that follows the system (owner: "both").
 3. The chat pane is a white surface (Chat UI's). Side panels stay paper, with `#C8C4B8` dividers.
 4. Bubbles: `redius: 12`, `LEFT_JUSTIFYING`, others `0xF1F0EC`, mine `0xE6EDFF`, text `0x14151A`. OH cards are designed to live inside a bubble, with no border or background of their own.
-5. Breakpoints come from the 600 px minimum: chat (≥ 600 px) + photo queue panel (400 px) + 12 px gaps need 1040 px, so two columns at ≥ 1040 px and tabs below.
+5. Two columns at ≥ 1040 px (chat ≥ 600 px + photo queue panel 400 px + 12 px gaps) and tabs below. The 600 px came from the channel detail's minimum, which no longer binds now that the room mounts the parts; it stays as the width where the chat reads well.
 
 ### Queue patterns
 Sources:
@@ -207,5 +212,7 @@ Sources: vercel.com/geist, linear.app/now, mercury.com, cal.com. Dither examples
 
 **For the video (P6):** record at 1920×1080 with 125% zoom. Keep anything the viewer must read at 13 px CSS or larger. Queue panel at least 340 px.
 
-## 8. Demo v6 (2026-11-12): approved by the owner
+## 8. Demo v7 (2026-11-12): v6 approved by the owner, then cleaned up at their request
+**v7, 12:26 IST:** the owner asked to remove the mock queue cards over the hero photo, the header's issue-number strip, the figure captions "and others of these types". All decorative mono labels are gone from the landing (§1 Details has the list). Nothing else changed; the room, the FAQ pages and the story's time labels and dot clock are as approved. The v6 file is kept as `../design/.work/demo-v6-approved.html`.
+
 `../design/office-hours-demo.html` with `../design/assets/` beside it (outside the repo; open it in Chrome). The bar at the bottom switches screen, role, device, state and dark mode; **Jump to** opens key moments. `#selftest` runs 31 checks of the queue rules (all pass). The landing follows §1 v3 (hero approved by the owner); the room follows §2 S3 (photo queue panel) with Chat UI's real constraints (§7); the queue has the approved extras: +1 on waiting rows, Away while there's no reply, Last call, carry-over on end, "N ahead of you", a wait estimate, the place in the tab title.

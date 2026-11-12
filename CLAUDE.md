@@ -12,7 +12,7 @@ Office Hours: live rooms where open-source maintainers take contributor question
 - Session: `bash tools/claude.sh` (loads only the supermemory key; memory server on `localhost:6768`, namespace `nexconn-office-hours`)
 - Environment: Go 1.25+ and Node 20+; `go -C server mod download` · `npm --prefix web ci` (`server/` is the Go module root)
 - Run: `bash tools/dev.sh` (loads `.env`, Go on :8080) + `npm --prefix web run dev` (:5173)
-- Tests: `go -C server test ./...` · `npm --prefix web test` (Vitest, UI logic only) · acceptance: AT-1…AT-19 by hand on production · lint/format: `gofmt -l server` + `go -C server vet ./...` · `npm --prefix web run lint` · types: `npx --prefix web tsc --noEmit` · DB: `go -C server run ./cmd/migrate`
+- Tests: `go -C server test ./...` · `npm --prefix web test` (Vitest, UI logic only) · acceptance: AT-1…AT-19 by hand on production · lint/format: `gofmt -l server` + `go -C server vet ./...` · `npm --prefix web run lint` · types: `npm --prefix web run typecheck` · DB: `go -C server run ./cmd/migrate`
 - Smoke: `/smoke` (detects the stack and runs everything above)
 
 ## Conventions
@@ -33,4 +33,8 @@ Office Hours: live rooms where open-source maintainers take contributor question
 ## Mistakes and rules
 Append one line after every correction ("Update your CLAUDE.md so you don't make that mistake again"). Prune at the end of each day.
 
-- (none yet)
+- Landing and public pages carry no decorative labels (issue numbers, "fig. 01" captions, section counters, corner credits) and no mock UI cards over photos. Labels only where they show real state. (owner, 2026-11-12)
+- Design references give principles, never layouts to reproduce; a rejected screen gets a new layout built on the approved concept, not decoration on the old one. (owner, 2026-11-12)
+- Tell the owner what is happening in plain, full sentences. Compressed status lines got "what ?" twice. (2026-11-12)
+- A test-only endpoint must refuse to open unless `APP_URL` is local, and say so in a test. (security review, 2026-11-12)
+- Ids that name a Nexconn group must be random: "already exists" is treated as ours. (review, 2026-11-12)
