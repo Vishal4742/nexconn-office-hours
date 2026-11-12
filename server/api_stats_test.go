@@ -128,7 +128,7 @@ func TestStatsRoutes(t *testing.T) {
 		a.remux()
 		for _, path := range []string{ofProject, ofSite} {
 			res, body := call(a.mux, "GET", path, "", nil)
-			refused(t, path, res, body, http.StatusServiceUnavailable, "isn't set up")
+			refused(t, path, res, body, http.StatusServiceUnavailable, "aren't set up")
 		}
 	})
 }
