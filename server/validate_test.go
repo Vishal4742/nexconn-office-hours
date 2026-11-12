@@ -38,6 +38,21 @@ func TestCleanLineCleanTextAndLengthBetween(t *testing.T) {
 	if got := cleanText("  first\r\nsecond\rthird\n\n  "); got != "first\nsecond\nthird" {
 		t.Errorf("cleanText = %q", got)
 	}
+	// A NUL would reach Postgres, which refuses it in a text column: a 500 for a crafted request.
+	// No form needs a control character, so they go; tabs and line breaks are whitespace and stay.
+	for _, tt := range []struct{ in, line, text string }{
+		{"How do I\x00 retry?", "How do I retry?", "How do I retry?"},
+		{"a\x00b\x1b[31mc\x7f", "ab[31mc", "ab[31mc"},
+		{"\x00\x01\x02", "", ""},
+		{"tab\there\nnext\u0085line", "tab here next line", "tab\there\nnext\u0085line"},
+	} {
+		if got := cleanLine(tt.in); got != tt.line {
+			t.Errorf("NFR-SEC-3: cleanLine(%q) = %q, want %q", tt.in, got, tt.line)
+		}
+		if got := cleanText(tt.in); got != tt.text {
+			t.Errorf("NFR-SEC-3: cleanText(%q) = %q, want %q", tt.in, got, tt.text)
+		}
+	}
 	for _, tt := range []struct {
 		s        string
 		min, max int
