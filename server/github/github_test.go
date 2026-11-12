@@ -294,7 +294,7 @@ func TestRepo(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Repo: %v", err)
 		}
-		want := Repo{Owner: "PaperPlane", Name: "Stash", Description: "A tiny HTTP cache.", OwnerIsOrg: true, CanMaintain: true, KnowsPermissions: true}
+		want := Repo{ID: 1, Owner: "PaperPlane", Name: "Stash", Description: "A tiny HTTP cache.", OwnerIsOrg: true, CanMaintain: true, KnowsPermissions: true}
 		if got != want {
 			t.Fatalf("Repo = %+v, want %+v", got, want)
 		}
@@ -333,12 +333,12 @@ func TestRepo(t *testing.T) {
 
 	t.Run("a null description is empty, a private repo is marked, a user is not an organization", func(t *testing.T) {
 		f := newFakeGitHub(t)
-		f.repoReply = `{"name":"notes","private":true,"owner":{"login":"mia-k","type":"User"},"description":null,"permissions":{"admin":true}}`
+		f.repoReply = `{"id":7,"name":"notes","private":true,"owner":{"login":"mia-k","type":"User"},"description":null,"permissions":{"admin":true}}`
 		got, err := f.client(t).Repo(ctx, token, "mia-k", "notes")
 		if err != nil {
 			t.Fatalf("Repo: %v", err)
 		}
-		want := Repo{Owner: "mia-k", Name: "notes", Private: true, CanMaintain: true, KnowsPermissions: true}
+		want := Repo{ID: 7, Owner: "mia-k", Name: "notes", Private: true, CanMaintain: true, KnowsPermissions: true}
 		if got != want {
 			t.Fatalf("Repo = %+v, want %+v", got, want)
 		}
@@ -358,8 +358,10 @@ func TestRepo(t *testing.T) {
 		"a 500":                    func(f *fakeGitHub) { f.repoStatus = 500; f.repoReply = `{"message":"Server Error"}` },
 		"a 429":                    func(f *fakeGitHub) { f.repoStatus = 429; f.repoReply = `{"message":"slow down"}` },
 		"a page instead of JSON":   func(f *fakeGitHub) { f.repoReply = `<html>` },
-		"a reply without a name":   func(f *fakeGitHub) { f.repoReply = `{"owner":{"login":"PaperPlane","type":"User"}}` },
-		"a reply without an owner": func(f *fakeGitHub) { f.repoReply = `{"name":"Stash"}` },
+		"a reply without a name":   func(f *fakeGitHub) { f.repoReply = `{"id":1,"owner":{"login":"PaperPlane","type":"User"}}` },
+		"a reply without an owner": func(f *fakeGitHub) { f.repoReply = `{"id":1,"name":"Stash"}` },
+		// The id is what ties a project to its repository: a name can change hands.
+		"a reply without an id": func(f *fakeGitHub) { f.repoReply = `{"name":"Stash","owner":{"login":"PaperPlane","type":"User"}}` },
 	} {
 		t.Run(name+" means GitHub did not answer", func(t *testing.T) {
 			f := newFakeGitHub(t)

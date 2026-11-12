@@ -31,7 +31,7 @@ func TestCreateProject(t *testing.T) {
 	people(t, pool)
 	s, ctx := New(pool), context.Background()
 
-	stash := Project{ID: "aaaa", Owner: "PaperPlane", Repo: "Stash", Description: "A tiny HTTP cache."}
+	stash := Project{ID: "aaaa", GitHubID: 1001, Owner: "PaperPlane", Repo: "Stash", Description: "A tiny HTTP cache."}
 	got, created, err := s.CreateProject(ctx, stash, "gh1")
 	if err != nil || !created {
 		t.Fatalf("CreateProject = created %v, err %v; want a new project", created, err)
@@ -51,7 +51,7 @@ func TestCreateProject(t *testing.T) {
 
 	// FR-PROJ-2: the same repository again, in another letter case and by someone else, changes
 	// nothing and answers with the project that exists. The asker gets no role from it.
-	again, created, err := s.CreateProject(ctx, Project{ID: "bbbb", Owner: "paperplane", Repo: "STASH", Description: "Changed."}, "gh2")
+	again, created, err := s.CreateProject(ctx, Project{ID: "bbbb", GitHubID: 2002, Owner: "paperplane", Repo: "STASH", Description: "Changed."}, "gh2")
 	if err != nil || created {
 		t.Fatalf("second CreateProject = created %v, err %v; want the existing project", created, err)
 	}
@@ -64,7 +64,7 @@ func TestCreateProject(t *testing.T) {
 
 	// A session can outlive its user row (an account deleted here, a database reset in development).
 	// That must be told apart from a broken database: the person only has to sign in again.
-	_, _, err = s.CreateProject(ctx, Project{ID: "cccc", Owner: "ghost", Repo: "town"}, "gh404")
+	_, _, err = s.CreateProject(ctx, Project{ID: "cccc", GitHubID: 3003, Owner: "ghost", Repo: "town"}, "gh404")
 	if !errors.Is(err, ErrUnknownUser) {
 		t.Fatalf("CreateProject for a user with no row: err = %v, want ErrUnknownUser", err)
 	}
@@ -89,7 +89,7 @@ func TestCreateProjectAtTheSameMoment(t *testing.T) {
 	var wg sync.WaitGroup
 	for i := range racers {
 		wg.Go(func() {
-			p, created, err := s.CreateProject(ctx, Project{ID: fmt.Sprintf("racer%d", i), Owner: "paperplane", Repo: "stash"}, "gh1")
+			p, created, err := s.CreateProject(ctx, Project{ID: fmt.Sprintf("racer%d", i), GitHubID: 1001, Owner: "paperplane", Repo: "stash"}, "gh1")
 			results[i] = result{p.ID, created, err}
 		})
 	}
@@ -123,7 +123,7 @@ func TestProjectByRepo(t *testing.T) {
 	if _, found, err := s.ProjectByRepo(ctx, "paperplane", "stash", ""); err != nil || found {
 		t.Fatalf("before registration: found %v, err %v; want not found", found, err)
 	}
-	stash := Project{ID: "aaaa", Owner: "PaperPlane", Repo: "Stash", Description: "A tiny HTTP cache."}
+	stash := Project{ID: "aaaa", GitHubID: 1001, Owner: "PaperPlane", Repo: "Stash", Description: "A tiny HTTP cache."}
 	if _, _, err := s.CreateProject(ctx, stash, "gh1"); err != nil {
 		t.Fatalf("CreateProject: %v", err)
 	}
@@ -160,7 +160,7 @@ func TestAddMaintainer(t *testing.T) {
 	pool := testDB(t)
 	people(t, pool)
 	s, ctx := New(pool), context.Background()
-	if _, _, err := s.CreateProject(ctx, Project{ID: "aaaa", Owner: "paperplane", Repo: "stash"}, "gh1"); err != nil {
+	if _, _, err := s.CreateProject(ctx, Project{ID: "aaaa", GitHubID: 1001, Owner: "paperplane", Repo: "stash"}, "gh1"); err != nil {
 		t.Fatalf("CreateProject: %v", err)
 	}
 	mustExec(t, pool, `INSERT INTO members (project_id, user_id) VALUES ('aaaa', 'gh3')`) // ana joined earlier
@@ -199,10 +199,10 @@ func TestProjectsOf(t *testing.T) {
 		project Project
 		by      string
 	}{
-		{Project{ID: "p-stash", Owner: "PaperPlane", Repo: "stash", Description: "A tiny HTTP cache."}, "gh1"},
-		{Project{ID: "p-atlas", Owner: "ana", Repo: "Atlas"}, "gh3"},
-		{Project{ID: "p-zed", Owner: "paperplane", Repo: "Zed"}, "gh1"},
-		{Project{ID: "p-other", Owner: "diego", Repo: "other"}, "gh2"},
+		{Project{ID: "p-stash", GitHubID: 1, Owner: "PaperPlane", Repo: "stash", Description: "A tiny HTTP cache."}, "gh1"},
+		{Project{ID: "p-atlas", GitHubID: 2, Owner: "ana", Repo: "Atlas"}, "gh3"},
+		{Project{ID: "p-zed", GitHubID: 3, Owner: "paperplane", Repo: "Zed"}, "gh1"},
+		{Project{ID: "p-other", GitHubID: 4, Owner: "diego", Repo: "other"}, "gh2"},
 	} {
 		if _, _, err := s.CreateProject(ctx, p.project, p.by); err != nil {
 			t.Fatalf("CreateProject(%s): %v", p.project.ID, err)
@@ -216,9 +216,9 @@ func TestProjectsOf(t *testing.T) {
 		t.Fatalf("ProjectsOf: %v", err)
 	}
 	want := []Project{
-		{ID: "p-atlas", Owner: "ana", Repo: "Atlas", IsMember: true},
-		{ID: "p-stash", Owner: "PaperPlane", Repo: "stash", Description: "A tiny HTTP cache.", IsMember: true, IsMaintainer: true},
-		{ID: "p-zed", Owner: "paperplane", Repo: "Zed", IsMember: true, IsMaintainer: true},
+		{ID: "p-atlas", GitHubID: 2, Owner: "ana", Repo: "Atlas", IsMember: true},
+		{ID: "p-stash", GitHubID: 1, Owner: "PaperPlane", Repo: "stash", Description: "A tiny HTTP cache.", IsMember: true, IsMaintainer: true},
+		{ID: "p-zed", GitHubID: 3, Owner: "paperplane", Repo: "Zed", IsMember: true, IsMaintainer: true},
 	}
 	if len(got) != len(want) {
 		t.Fatalf("ProjectsOf = %+v, want %+v", got, want)
