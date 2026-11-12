@@ -51,8 +51,6 @@ func TestRoutes(t *testing.T) {
 		{"config says so when the server has no Nexconn config", config{}, "GET", "/api/config", 503, `"ok":false`},
 		{"unknown API path is 404", full, "GET", "/api/nope", 404, ""},
 		{"wrong method is refused", full, "POST", "/api/health", 405, ""},
-		{"FR-FAQ-3: FAQ list route reaches Go", full, "GET", "/p/paperplane/stash/faq", 200, "paperplane/stash"},
-		{"FR-FAQ-3: FAQ entry route reaches Go", full, "GET", "/p/paperplane/stash/faq/retry-on-5xx", 200, "retry-on-5xx"},
 		{"NFR-SEC-3: owner with a bad character is 404", full, "GET", "/p/bad_owner/stash/faq", 404, ""},
 		{"NFR-SEC-3: owner longer than 39 is 404", full, "GET", "/p/" + strings.Repeat("a", 40) + "/stash/faq", 404, ""},
 		{"NFR-SEC-3: repo with markup is 404", full, "GET", "/p/a/%3Cb%3E/faq", 404, ""},

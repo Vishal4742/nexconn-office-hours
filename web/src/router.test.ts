@@ -21,6 +21,21 @@ describe("matchRoute", () => {
     });
   });
 
+  it("FR-MET-1: the numbers have a page for the site and one for each project", () => {
+    expect(matchRoute("/stats")).toEqual({ name: "stats" });
+    expect(matchRoute("/p/paperplane/stash/stats")).toEqual({
+      name: "projectStats",
+      owner: "paperplane",
+      repo: "stash",
+    });
+    // A repository may itself be called "stats": that is its room.
+    expect(matchRoute("/p/paperplane/stats")).toEqual({
+      name: "room",
+      owner: "paperplane",
+      repo: "stats",
+    });
+  });
+
   it("forgives one trailing slash", () => {
     expect(matchRoute("/dashboard/")).toEqual({ name: "dashboard" });
     expect(matchRoute("/p/paperplane/stash/")).toEqual({
@@ -35,6 +50,8 @@ describe("matchRoute", () => {
       "/p",
       "/p/paperplane",
       "/p/paperplane/stash/extra",
+      "/p/paperplane/stash/stats/extra",
+      "/p/under_score/stash/stats",
       "/p/under_score/stash",
       "/p/paperplane/sta sh",
       "/p/paperplane/..",
