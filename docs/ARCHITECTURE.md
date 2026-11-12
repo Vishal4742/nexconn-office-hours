@@ -43,10 +43,10 @@ users        id TEXT PK ('gh'||github_id), github_id BIGINT UNIQUE, login, name,
 projects     id TEXT PK (random, 26 chars), github_id BIGINT UNIQUE (GitHub's id of the repo), owner, repo, UNIQUE(lower(owner), lower(repo)), description, next_session_at, created_by, created_at
 maintainers  project_id, user_id, PK(project_id, user_id)                  -- source of truth for roles
 members      project_id, user_id, joined_at, PK(project_id, user_id)       -- written by /join; gives "unique participants"
-sessions     id PK, project_id, title, status ('live'|'ended'), planned_minutes, started_at, ended_at, hands_closed BOOL DEFAULT false, queue_version INT DEFAULT 0
-hands        id PK, session_id, author_id, title, details, status, raised_at, sort_at, taken_at, closed_at, acked_at, away_count INT DEFAULT 0, merged_into NULL
-hand_plus    hand_id, user_id, PK(hand_id, user_id)                          -- "+1 me too" (FR-HAND-7); never changes the order
-faq_entries  id PK, project_id, hand_id NULL, slug, title, question, answer, links JSONB, author_id, created_at, deleted_at
+sessions     id PK, project_id, title, status ('live'|'ended'), planned_minutes, started_at, ended_at, hands_closed BOOL DEFAULT false, queue_version INT DEFAULT 0, started_by NULL (the host)
+hands        id PK, session_id, author_id, title, details, status, raised_at, sort_at, taken_at, taken_by NULL, closed_at, acked_at, away_count INT DEFAULT 0, merged_into NULL
+hand_plus    hand_id, user_id, PK(hand_id, user_id)                          -- "+1 me too" (FR-HAND-7); a set: it has no order and never changes the queue's
+faq_entries  id PK, project_id, hand_id NULL, slug, title, question, answer, links JSONB, asked_by INT DEFAULT 1, author_id, created_at, deleted_at
 ```
 **Constraints the database enforces** (so racing requests can't break the rules):
 1. `UNIQUE (project_id) WHERE status='live'` on sessions (one live session per project, FR-SESS-2)
@@ -55,6 +55,7 @@ faq_entries  id PK, project_id, hand_id NULL, slug, title, question, answer, lin
 4. `UNIQUE (project_id, slug)` on faq_entries, plus a `tsvector` GIN index on title + question + answer (FR-FAQ-4)
 Hand statuses: `waiting`, `answering`, `answered`, `skipped`, `withdrawn`, `removed`, `not_reached`, `carried`, `merged`. The queue orders by **`(sort_at, id)`**; `sort_at` starts as `raised_at`, which never changes (FR-HAND-6 and the wait estimate read it). Away sets `sort_at` between the 2nd and 3rd waiting hands, to the end on a second miss, and a third miss is `skipped`. A carried hand gets the next session's id when it starts and keeps its `sort_at`, so it sits at the front. Merge copies the merged hand's +1s into the target (`INSERT … SELECT … ON CONFLICT DO NOTHING`). "Asked by N people" on a public FAQ page is a count; names appear only inside the room.
 Stats (FR-MET-1) are `COUNT` queries on these tables, with no events table. Rate limit FR-HAND-6 is one query on `hands.raised_at`.
+A change of the schema is a new file in `server/migrations/` (`002_queue.sql` added `started_by`, `taken_by` and `asked_by`); a file that a database may have run is never edited.
 
 ## 4. Nexconn mapping
 | Concept | Nexconn object |
@@ -86,16 +87,16 @@ Stats (FR-MET-1) are `COUNT` queries on these tables, with no events table. Rate
 | `POST /api/projects` `{owner, repo}` | signed in | GitHub permission check, then the group, then the project (idempotent; a second maintainer of the repo becomes one here) | FR-PROJ-1..2 |
 | `GET /api/p/:owner/:repo` · `GET /api/me/projects` | anyone · signed in | A project's public facts, the caller's role when signed in, and for a member the chat room (`groupId`) · the caller's rooms | FR-PROJ-3 |
 | `POST /api/p/:owner/:repo/join` · `GET /api/p/:owner/:repo/members` | signed in · member | Join (the group first, then the members row; answers with the project as a member sees it) · who is in the room: user id, name, avatar | FR-PROJ-4 |
-| `POST /api/projects/:id/sessions` · `POST /api/sessions/:id/end` `{carry}` | maintainer | Start (card + @all; carried hands first) · end (waiting → carried or not_reached) | FR-SESS-1..4, FR-SESS-7 |
-| `POST /api/sessions/:id/lastcall` `{closed}` | maintainer | Close / reopen hands | FR-SESS-6 |
-| `GET /api/sessions/:id/queue` | member | Queue + version | FR-QUEUE-4..6 |
-| `POST /api/sessions/:id/hands` · `POST /api/hands/:id/withdraw` | member · author | Raise · withdraw | FR-HAND-1..6 |
-| `POST /api/sessions/:id/next` · `POST /api/hands/:id/{skip,remove,done,away}` | maintainer | Queue actions; `done` takes `{answer, links}` and creates the FAQ entry | FR-QUEUE-3, FR-QUEUE-8, FR-FAQ-1..2 |
-| `POST /api/hands/:id/here` · `POST /api/hands/:id/plus` · `POST /api/hands/:id/merge` `{into}` | author · member · maintainer | "I'm here" · toggle +1 · merge into the current hand | FR-QUEUE-9, FR-HAND-7..8 |
-| `POST /api/projects/:id/mute` `{userId}` | maintainer | Mute in the group | FR-MOD-1 |
-| `GET /api/projects/:id/faq/search?q=` · `DELETE /api/faq/:id` | anyone · maintainer | Suggestions · delete (410 page) | FR-FAQ-4, FR-FAQ-6 |
+| `GET /api/p/:owner/:repo/queue` | anyone | The session, the queue and its version. The hands, with their authors and questions, go to members only; someone outside the room learns that a session is live | FR-QUEUE-4..6, FR-PROJ-3 |
+| `POST /api/p/:owner/:repo/sessions` `{title, plannedMinutes}` · `POST /api/sessions/:id/end` `{carry}` | maintainer | Start (GitHub rights checked again; card + @all; carried hands first) · end (waiting → carried or not_reached; refused while a hand is being answered) | FR-SESS-1..4, FR-SESS-7 |
+| `POST /api/sessions/:id/lastcall` `{closed}` · `POST /api/p/:owner/:repo/next-session` `{at}` | maintainer | Close / reopen hands · when the next session is planned | FR-SESS-5..6 |
+| `POST /api/sessions/:id/hands` `{title, details}` · `POST /api/hands/:id/{withdraw,plus,here}` | member (the rules check whose hand it is) | Raise · withdraw · toggle +1 · "I'm here" | FR-HAND-1..7, FR-QUEUE-9 |
+| `POST /api/sessions/:id/next` · `POST /api/hands/:id/{skip,remove,away,merge}` · `POST /api/hands/:id/done` `{answer, links}` | maintainer | Queue actions; merge joins a waiting hand to the one being answered; `done` creates the FAQ entry in the same transaction | FR-QUEUE-3, FR-QUEUE-8, FR-HAND-8, FR-FAQ-1..2 |
+| `POST /api/p/:owner/:repo/mute` `{userId, minutes}` | maintainer | Mute in the group | FR-MOD-1 |
+| `POST /api/p/:owner/:repo/faq/similar` `{text}` · `GET /api/p/:owner/:repo/faq/latest` · `POST /api/faq/:id/delete` | signed in · anyone · maintainer | Suggestions (a draft question travels in the body, never in an address) · the newest entries · delete (410 page) | FR-HAND-3, FR-FAQ-4, FR-FAQ-6 |
+| `GET /api/p/:owner/:repo/stats` · `GET /api/stats` | anyone | The five numbers of one project · of the site | FR-MET-1 |
 | `DELETE /api/me` (Should) | signed in | Anonymize my hands, delete my user row, expire my Nexconn tokens | FR-AUTH-5 |
-**Everything about one project is addressed by owner and repo** (`/api/p/:owner/:repo…`, like its page), so the project id never leaves the server and a non-member never learns which Nexconn group a room is. The session, hand and mute routes below still show the first draft's `/api/projects/:id/…`; P2 gives them the same shape when it builds them.
+**Everything about one project is addressed by owner and repo** (`/api/p/:owner/:repo…`, like its page), so the project id never leaves the server and a non-member never learns which Nexconn group a room is. A session and a hand are addressed by their own ids; the server finds the project, and with it the caller's role, from the id. Every mutation answers with the whole queue as the caller sees it, so the page that acted is current before the ping arrives. Ids are strings in the JSON and in the cards. All of these routes are registered since the P2 skeleton (2026-11-12); one that is not built yet answers 501 (`notes/phase-2-plan.md`).
 Pages: static UI `/` · `/dashboard` · `/p/:owner/:repo` (join + room) · `/p/:owner/:repo/stats` · `/stats`; Go-rendered `/p/:owner/:repo/faq` · `/p/:owner/:repo/faq/:slug`.
 
 **Nexconn calls in `server/nexconn`** (SDK methods in §2): issue token, create group, join group, send group message (`shouldPersist:0` for OH:Queue; @all mention for session cards), mute, expire token. `isPersisted` / `isCounted` are **client** flags set when the UI registers each custom type; the server only sends `shouldPersist`.
