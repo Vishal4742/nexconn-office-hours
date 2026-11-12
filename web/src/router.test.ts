@@ -42,7 +42,6 @@ describe("matchRoute", () => {
       `/p/${"a".repeat(40)}/stash`,
       `/p/paperplane/${"r".repeat(101)}`,
       "/nope",
-      "/spike", // the Phase 0 test page is gone
       "/Dashboard",
       "//evil.example",
     ]) {

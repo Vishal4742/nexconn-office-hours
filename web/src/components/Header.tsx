@@ -2,6 +2,7 @@ import { useState } from "react";
 
 import { signInHref, signOut, useAuth } from "../auth";
 import { navigate } from "../router";
+import { Avatar } from "./Avatar";
 import { Logo } from "./Icons";
 import { Link } from "./Link";
 
@@ -44,14 +45,7 @@ export function Header() {
               Dashboard
             </Link>
             <span className="who">
-              <img
-                className="av"
-                src={auth.me.avatarUrl}
-                alt=""
-                width={28}
-                height={28}
-                referrerPolicy="no-referrer"
-              />
+              <Avatar name={auth.me.name} url={auth.me.avatarUrl} />
               <span>{auth.me.name}</span>
             </span>
             <button

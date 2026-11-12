@@ -104,8 +104,3 @@ export function strangers(
 export function nameOf(userId: string): string | null {
   return people.get(userId)?.name ?? null;
 }
-
-/** Everyone the page has been told about, for filling Chat UI's profile cache. */
-export function knownPeople(): readonly Person[] {
-  return [...people.values()];
-}

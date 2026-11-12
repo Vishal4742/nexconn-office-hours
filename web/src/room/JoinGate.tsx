@@ -1,6 +1,7 @@
 import { useState } from "react";
 
-import { ApiError, errorMessage } from "../api";
+import { refusalOf } from "../api";
+import type { Sending } from "../api";
 import { signInHref } from "../auth";
 import { GitHubMark } from "../components/Icons";
 import { joinProject, roomPath } from "../projects";
@@ -13,18 +14,9 @@ type Props = {
   readonly onJoined: (project: Project) => void;
 };
 
-type Joining =
-  | { readonly status: "idle" }
-  | { readonly status: "sending" }
-  | {
-      readonly status: "refused";
-      readonly message: string;
-      readonly needsSignIn: boolean;
-    };
-
 /** What someone sees before they are in the room, and the one way in (FR-PROJ-3, FR-PROJ-4). */
 export function JoinGate({ project, isSignedIn, onJoined }: Props) {
-  const [joining, setJoining] = useState<Joining>({ status: "idle" });
+  const [joining, setJoining] = useState<Sending>({ status: "idle" });
   const signIn = signInHref(roomPath(project));
 
   async function handleJoin() {
@@ -32,11 +24,7 @@ export function JoinGate({ project, isSignedIn, onJoined }: Props) {
     try {
       onJoined(await joinProject(project));
     } catch (failure) {
-      setJoining({
-        status: "refused",
-        message: errorMessage(failure),
-        needsSignIn: failure instanceof ApiError && failure.status === 401,
-      });
+      setJoining({ status: "refused", ...refusalOf(failure) });
     }
   }
 
