@@ -171,6 +171,11 @@ func TestTheDatabaseEnforcesTheRules(t *testing.T) {
 			refused: `INSERT INTO faq_entries (project_id, slug, title, answer, author_id) VALUES ('proj1', 'retry-on-5xx', 'Again', 'Same slug.', 'gh1')`,
 		},
 		{
+			name:    "FR-PROJ-2: a GitHub repository is one project whatever it is called now",
+			allowed: `INSERT INTO projects (id, github_id, owner, repo, created_by) VALUES ('proj5', 5, 'paperplane', 'cache', 'gh1')`,
+			refused: `INSERT INTO projects (id, github_id, owner, repo, created_by) VALUES ('proj6', 1, 'paperplane', 'renamed-stash', 'gh1')`,
+		},
+		{
 			name:    "FR-PROJ-2: a repo is one project whatever its letter case",
 			allowed: `INSERT INTO projects (id, github_id, owner, repo, created_by) VALUES ('proj3', 3, 'paperplane', 'stash-native', 'gh1')`,
 			refused: `INSERT INTO projects (id, github_id, owner, repo, created_by) VALUES ('proj4', 4, 'PaperPlane', 'Stash', 'gh1')`,

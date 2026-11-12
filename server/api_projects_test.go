@@ -47,8 +47,9 @@ type fakeRepoAPI struct {
 	*httptest.Server
 	status int
 	reply  string
-	hang   chan struct{} // closed to release a GitHub that does not answer
-	asked  []string      // "Authorization header + space + path"
+	header map[string]string // extra response headers, as GitHub sends with a rate limit
+	hang   chan struct{}     // closed to release a GitHub that does not answer
+	asked  []string          // "Authorization header + space + path"
 }
 
 func newFakeRepoAPI(t *testing.T) *fakeRepoAPI {
@@ -61,6 +62,9 @@ func newFakeRepoAPI(t *testing.T) *fakeRepoAPI {
 			<-f.hang
 		}
 		w.Header().Set("Content-Type", "application/json")
+		for k, v := range f.header {
+			w.Header().Set(k, v)
+		}
 		w.WriteHeader(f.status)
 		io.WriteString(w, f.reply)
 	})
@@ -74,6 +78,7 @@ func newFakeRepoAPI(t *testing.T) *fakeRepoAPI {
 type fakeRooms struct {
 	events    *[]string
 	names     map[string]string // group id → its name
+	in        map[string]bool   // "group id + space + user id": who is in which group
 	createErr error
 	joinErr   error
 }
@@ -83,13 +88,22 @@ func (f *fakeRooms) CreateGroup(_ context.Context, channelID, name, ownerID stri
 		return f.createErr
 	}
 	f.names[channelID] = name
+	f.in[channelID+" "+ownerID] = true
 	*f.events = append(*f.events, "create group "+channelID+" owner "+ownerID)
 	return nil
 }
 
+// JoinGroup is stricter than Nexconn, which accepts a second join: here it is an error, so a
+// join the server had no need to ask for fails a test.
 func (f *fakeRooms) JoinGroup(_ context.Context, channelID string, userIDs ...string) error {
 	if f.joinErr != nil {
 		return f.joinErr
+	}
+	for _, id := range userIDs {
+		if f.in[channelID+" "+id] {
+			return errors.New("fake nexconn: " + id + " is already in " + channelID)
+		}
+		f.in[channelID+" "+id] = true
 	}
 	*f.events = append(*f.events, "join "+channelID+" "+strings.Join(userIDs, ","))
 	return nil
@@ -117,6 +131,22 @@ func (f *fakeProjects) seenBy(p store.Project, userID string) store.Project {
 func (f *fakeProjects) ProjectByRepo(_ context.Context, owner, repo, viewerID string) (store.Project, bool, error) {
 	if f.err != nil {
 		return store.Project{}, false, f.err
+	}
+	p, ok := f.byRepo[repoKey(owner, repo)]
+	if !ok {
+		return store.Project{}, false, nil
+	}
+	return f.seenBy(p, viewerID), true, nil
+}
+
+func (f *fakeProjects) ProjectOf(_ context.Context, githubID int64, owner, repo, viewerID string) (store.Project, bool, error) {
+	if f.err != nil {
+		return store.Project{}, false, f.err
+	}
+	for _, p := range f.byRepo {
+		if p.GitHubID == githubID {
+			return f.seenBy(p, viewerID), true, nil
+		}
 	}
 	p, ok := f.byRepo[repoKey(owner, repo)]
 	if !ok {
@@ -229,7 +259,7 @@ func newProjectsApp(t *testing.T) *projectsApp {
 	events := &[]string{}
 	a := &projectsApp{
 		gh: gh, events: events, codec: codec,
-		rooms:    &fakeRooms{events: events, names: map[string]string{}},
+		rooms:    &fakeRooms{events: events, names: map[string]string{}, in: map[string]bool{}},
 		projects: &fakeProjects{events: events, byRepo: map[string]store.Project{}, maintainers: map[string]bool{}, members: map[string]bool{}, joined: map[string][]string{}},
 	}
 	a.deps = deps{guard: g, sessions: codec, github: client, rooms: a.rooms, projects: a.projects}
@@ -419,6 +449,63 @@ func TestRegisterProject(t *testing.T) {
 		}
 		if strings.Contains(strings.Join(events, "\n"), "insert project") || strings.HasPrefix(events[0], "create group p"+winner) {
 			t.Fatalf("events = %q: the loser must not record a project or re-create the winner's room", events)
+		}
+	})
+
+	t.Run("someone who joined the room and then registers as its maintainer is not joined twice", func(t *testing.T) {
+		a := newProjectsApp(t)
+		var first, second projectReply
+		_, body := a.register("paperplane", "stash", a.as(t, "gh42"))
+		decode(t, body, &first)
+		call(a.mux, "POST", "/api/p/paperplane/stash/join", `{}`, a.as(t, "gh7"))
+		*a.events = nil
+
+		// gh7 is in the group already. A second join would be a wasted call to Nexconn at best.
+		res, body := a.register("paperplane", "stash", a.as(t, "gh7"))
+		decode(t, body, &second)
+		if res.StatusCode != http.StatusOK || !second.IsMaintainer || !second.IsMember {
+			t.Fatalf("status %d project %+v, want 200 and a maintainer: %s", res.StatusCode, second, body)
+		}
+		if want := []string{"add maintainer " + strings.TrimPrefix(first.GroupID, "p") + " gh7"}; !slices.Equal(*a.events, want) {
+			t.Fatalf("events = %q, want %q", *a.events, want)
+		}
+	})
+
+	t.Run("FR-PROJ-2: a repo that was renamed on GitHub is still the same project", func(t *testing.T) {
+		a := newProjectsApp(t)
+		var first, again, other projectReply
+		_, body := a.register("paperplane", "stash", a.as(t, "gh42"))
+		decode(t, body, &first)
+		*a.events = nil
+
+		// GitHub follows the old name to the repo and answers with its new one: the same id.
+		a.gh.reply = githubRepo("PaperPlane", "Organization", "Cache", maintainRights)
+		res, body := a.register("paperplane", "stash", a.as(t, "gh42"))
+		decode(t, body, &again)
+		// The project keeps the name it was registered under: no second project, no second room.
+		if res.StatusCode != http.StatusOK || again != first || len(*a.events) != 0 || len(a.projects.byRepo) != 1 {
+			t.Fatalf("status %d project %+v events %q, want 200, %+v and nothing done", res.StatusCode, again, *a.events, first)
+		}
+		// Another maintainer of the renamed repo, typing its new name, lands in the same project.
+		res, body = a.register("paperplane", "cache", a.as(t, "gh7"))
+		decode(t, body, &other)
+		if res.StatusCode != http.StatusOK || other.GroupID != first.GroupID || !other.IsMaintainer || len(a.projects.byRepo) != 1 {
+			t.Fatalf("status %d project %+v, want 200 and a maintainer of %s: %s", res.StatusCode, other, first.GroupID, body)
+		}
+	})
+
+	t.Run("a rate limit from GitHub is not an organization's refusal", func(t *testing.T) {
+		for name, header := range map[string]map[string]string{
+			"a secondary limit": {"Retry-After": "30"},
+			"the hourly limit":  {"X-RateLimit-Remaining": "0"},
+		} {
+			a := newProjectsApp(t)
+			a.gh.status, a.gh.reply, a.gh.header = 403, `{"message":"You have exceeded a rate limit."}`, header
+			res, body := a.register("paperplane", "stash", a.as(t, "gh42"))
+			refused(t, name, res, body, 502, "GitHub didn't answer")
+			if strings.Contains(body, "approve") {
+				t.Errorf("%s: the user is sent to an organization owner for a rate limit: %s", name, body)
+			}
 		}
 	})
 

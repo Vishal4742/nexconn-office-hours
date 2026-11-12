@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   CHANNEL_LIST_NOT_READY,
   connectWithFreshToken,
+  inTurn,
   openWhenReady,
   type ConnectOutcome,
 } from "./connect";
@@ -97,10 +98,63 @@ describe("opening a room right after connecting", () => {
     expect(open).toHaveBeenCalledTimes(4);
   });
 
+  it("stops trying once the page has been left", async () => {
+    // The room was closed while Chat UI was still loading its channel list. Opening it later
+    // would put its messages under the next room.
+    const { open } = setupOpen([NOT_YET, NOT_YET, READY]);
+    let hasLeft = false;
+    const pause = vi.fn(async () => {
+      hasLeft = true;
+    });
+    await expect(
+      openWhenReady(open, pause, 20, () => hasLeft),
+    ).resolves.toEqual(NOT_YET);
+    expect(open).toHaveBeenCalledTimes(1);
+  });
+
   it("does not retry a real refusal", async () => {
     const { open, pause } = setupOpen([REFUSED, READY]);
     await expect(openWhenReady(open, pause)).resolves.toEqual(REFUSED);
     expect(open).toHaveBeenCalledTimes(1);
     expect(pause).not.toHaveBeenCalled();
+  });
+});
+
+describe("one room is opened at a time", () => {
+  function deferred() {
+    let resolve = () => {};
+    const promise = new Promise<void>((done) => {
+      resolve = done;
+    });
+    return { promise, resolve };
+  }
+
+  it("starts the next task only when the one before it has ended", async () => {
+    const log: string[] = [];
+    const first = deferred();
+    const a = inTurn(async () => {
+      log.push("a starts");
+      await first.promise;
+      log.push("a ends");
+      return "a";
+    });
+    const b = inTurn(async () => {
+      log.push("b starts");
+      return "b";
+    });
+    await Promise.resolve();
+    expect(log).toEqual(["a starts"]);
+    first.resolve();
+    await expect(Promise.all([a, b])).resolves.toEqual(["a", "b"]);
+    expect(log).toEqual(["a starts", "a ends", "b starts"]);
+  });
+
+  it("a task that fails does not hold up the next one, and its failure reaches its caller", async () => {
+    const failed = inTurn(async (): Promise<string> => {
+      throw new Error("could not open");
+    });
+    const next = inTurn(async () => "opened");
+    await expect(failed).rejects.toThrow("could not open");
+    await expect(next).resolves.toBe("opened");
   });
 });
