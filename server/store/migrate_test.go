@@ -79,7 +79,7 @@ func isUniqueViolation(err error) bool {
 func seed(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
 	mustExec(t, pool, `INSERT INTO users (id, github_id, login) VALUES ('gh1', 1, 'mia'), ('gh2', 2, 'diego')`)
-	mustExec(t, pool, `INSERT INTO projects (id, owner, repo, nexconn_group_id, created_by) VALUES ('proj1', 'paperplane', 'stash', 'pproj1', 'gh1')`)
+	mustExec(t, pool, `INSERT INTO projects (id, owner, repo, created_by) VALUES ('proj1', 'paperplane', 'stash', 'gh1')`)
 	mustExec(t, pool, `INSERT INTO sessions (project_id, title) VALUES ('proj1', 'Thursday office hours')`)
 }
 
@@ -164,7 +164,7 @@ func TestTheDatabaseEnforcesTheRules(t *testing.T) {
 		{
 			name: "FR-FAQ-1: a slug is unique inside its project",
 			setup: []string{
-				`INSERT INTO projects (id, owner, repo, nexconn_group_id, created_by) VALUES ('proj2', 'paperplane', 'other', 'pproj2', 'gh1')`,
+				`INSERT INTO projects (id, owner, repo, created_by) VALUES ('proj2', 'paperplane', 'other', 'gh1')`,
 				`INSERT INTO faq_entries (project_id, slug, title, answer, author_id) VALUES ('proj1', 'retry-on-5xx', 'Retry on 5xx', 'Use retryIf.', 'gh1')`,
 			},
 			allowed: `INSERT INTO faq_entries (project_id, slug, title, answer, author_id) VALUES ('proj2', 'retry-on-5xx', 'Retry on 5xx', 'Use retryIf.', 'gh1')`,
@@ -172,8 +172,8 @@ func TestTheDatabaseEnforcesTheRules(t *testing.T) {
 		},
 		{
 			name:    "FR-PROJ-2: a repo is one project whatever its letter case",
-			allowed: `INSERT INTO projects (id, owner, repo, nexconn_group_id, created_by) VALUES ('proj3', 'paperplane', 'stash-native', 'pproj3', 'gh1')`,
-			refused: `INSERT INTO projects (id, owner, repo, nexconn_group_id, created_by) VALUES ('proj4', 'PaperPlane', 'Stash', 'pproj4', 'gh1')`,
+			allowed: `INSERT INTO projects (id, owner, repo, created_by) VALUES ('proj3', 'paperplane', 'stash-native', 'gh1')`,
+			refused: `INSERT INTO projects (id, owner, repo, created_by) VALUES ('proj4', 'PaperPlane', 'Stash', 'gh1')`,
 		},
 	}
 	for _, tt := range tests {
