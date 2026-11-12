@@ -6,7 +6,6 @@ describe("matchRoute", () => {
   it("knows the pages the web app owns", () => {
     expect(matchRoute("/")).toEqual({ name: "landing" });
     expect(matchRoute("/dashboard")).toEqual({ name: "dashboard" });
-    expect(matchRoute("/spike")).toEqual({ name: "spike" });
   });
 
   it("FR-PROJ-3: /p/owner/repo is the project's page, in GitHub's own spelling", () => {
@@ -43,6 +42,7 @@ describe("matchRoute", () => {
       `/p/${"a".repeat(40)}/stash`,
       `/p/paperplane/${"r".repeat(101)}`,
       "/nope",
+      "/spike", // the Phase 0 test page is gone
       "/Dashboard",
       "//evil.example",
     ]) {
