@@ -16,7 +16,10 @@ import (
 	"strings"
 	"time"
 
+	"officehours/github"
+	"officehours/guard"
 	"officehours/nexconn"
+	"officehours/session"
 	"officehours/store"
 )
 
@@ -81,7 +84,9 @@ var (
 )
 
 func validOwnerRepo(owner, repo string) bool {
-	return ownerRe.MatchString(owner) && repoRe.MatchString(repo)
+	// "." and ".." pass the pattern, but GitHub has no such repos and as path parts they mean
+	// "here" and "up".
+	return ownerRe.MatchString(owner) && repoRe.MatchString(repo) && repo != "." && repo != ".."
 }
 
 const probeCookie = "oh_probe"
@@ -115,10 +120,16 @@ type tokenIssuer interface {
 	IssueToken(ctx context.Context, userID, name string) (string, error)
 }
 
-// deps are the outside systems the handlers use. A nil one means "not configured".
+// deps are the outside systems the handlers use. A nil db, tokens, github or users means "not
+// configured" and the routes that need it say so. guard and sessions are always there: main
+// refuses to start without APP_URL and AUTH_SECRET.
 type deps struct {
-	db     pinger
-	tokens tokenIssuer
+	db       pinger
+	tokens   tokenIssuer
+	guard    *guard.Guard
+	sessions *session.Codec
+	github   *github.Client
+	users    userStore
 }
 
 // spikeUsers are the only ids the P0 test endpoint will ever mint a token for.
@@ -156,6 +167,12 @@ func newMux(cfg config, d deps) *http.ServeMux {
 			Token  string `json:"token"`
 		}{user, token}})
 	})
+
+	// Sign-in (FR-AUTH-1, FR-AUTH-4).
+	mux.HandleFunc("GET /auth/github/login", d.login)
+	mux.HandleFunc("GET /auth/github/callback", d.callback)
+	mux.HandleFunc("POST /auth/logout", d.logout)
+	mux.HandleFunc("GET /api/me", d.me)
 
 	mux.HandleFunc("GET /api/config", func(w http.ResponseWriter, _ *http.Request) {
 		if cfg.AppKey == "" || cfg.Area == "" {
@@ -213,7 +230,7 @@ func listenAddr() string {
 }
 
 // openDB returns nil when no database is configured, and the health check then says "off".
-func openDB(ctx context.Context, url string) (pinger, error) {
+func openDB(ctx context.Context, url string) (*store.Store, error) {
 	if url == "" {
 		return nil, nil
 	}
@@ -221,7 +238,17 @@ func openDB(ctx context.Context, url string) (pinger, error) {
 	if err != nil {
 		return nil, err
 	}
-	return pool, nil
+	return store.New(pool), nil
+}
+
+// openGitHub returns nil when the OAuth app's credentials are missing; sign-in then answers
+// "not set up". The callback address is built from APP_URL, never from a request.
+func openGitHub(origin string) (*github.Client, error) {
+	id, secret := os.Getenv("AUTH_GITHUB_ID"), os.Getenv("AUTH_GITHUB_SECRET")
+	if id == "" || secret == "" {
+		return nil, nil
+	}
+	return github.New(github.Config{ClientID: id, ClientSecret: secret, RedirectURL: origin + "/auth/github/callback"})
 }
 
 // openNexconn returns nil when the server has no Nexconn credentials, e.g. in CI.
@@ -237,18 +264,48 @@ func openNexconn() (tokenIssuer, error) {
 	return client, nil
 }
 
-func main() {
-	db, err := openDB(context.Background(), os.Getenv("DATABASE_URL"))
+// newDeps reads the environment and connects what is configured. APP_URL and AUTH_SECRET are not
+// optional: without them no request could be checked and no cookie sealed.
+func newDeps(ctx context.Context, cfg config) (deps, error) {
+	sessions, err := session.NewCodec(os.Getenv("AUTH_SECRET"))
 	if err != nil {
-		log.Fatalf("database: %v", err)
+		return deps{}, err
+	}
+	db, err := openDB(ctx, os.Getenv("DATABASE_URL"))
+	if err != nil {
+		return deps{}, fmt.Errorf("database: %w", err)
+	}
+	g, err := guard.New(cfg.AppURL, sessions, nil) // roles join in the projects slice
+	if err != nil {
+		return deps{}, err
+	}
+	gh, err := openGitHub(g.Origin())
+	if err != nil {
+		return deps{}, err
 	}
 	tokens, err := openNexconn()
 	if err != nil {
-		log.Fatalf("nexconn: %v", err)
+		return deps{}, fmt.Errorf("nexconn: %w", err)
+	}
+	d := deps{tokens: tokens, guard: g, sessions: sessions, github: gh}
+	if db != nil { // a nil *store.Store inside an interface would not compare equal to nil
+		d.db, d.users = db, db
+	}
+	return d, nil
+}
+
+func main() {
+	cfg := configFromEnv()
+	d, err := newDeps(context.Background(), cfg)
+	if err != nil {
+		log.Fatalf("cannot start: %v", err)
+	}
+	if d.github == nil || d.users == nil {
+		log.Print("sign-in is off: it needs AUTH_GITHUB_ID, AUTH_GITHUB_SECRET and DATABASE_URL")
 	}
 	srv := &http.Server{
 		Addr:              listenAddr(),
-		Handler:           newMux(configFromEnv(), deps{db: db, tokens: tokens}),
+		Handler:           newMux(cfg, d),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 	log.Printf("office hours server listening on %s", srv.Addr)
