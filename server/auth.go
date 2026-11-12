@@ -62,16 +62,25 @@ func (d deps) login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// A deployment answers on more than one host. The state cookie must be set on the host
-	// GitHub sends the browser back to, so start over there.
-	if r.Host != origin.Host {
-		http.Redirect(w, r, d.guard.Origin()+r.URL.RequestURI(), http.StatusFound)
+	// GitHub sends the browser back to, so a login that starts elsewhere is sent there first.
+	// Behind a proxy the browser's host is in X-Forwarded-Host; if it can't be seen at all the
+	// redirect happens once (the "hop" mark) and never loops. The header only decides whether
+	// to redirect to our own fixed origin, so a forged one gains nothing.
+	host := r.Header.Get("X-Forwarded-Host")
+	if host == "" {
+		host = r.Host
+	}
+	q := r.URL.Query()
+	if host != origin.Host && q.Get("hop") == "" {
+		q.Set("hop", "1")
+		http.Redirect(w, r, d.guard.Origin()+r.URL.Path+"?"+q.Encode(), http.StatusFound)
 		return
 	}
 	if d.github == nil || d.users == nil {
 		signInFailed(w, r, "setup")
 		return
 	}
-	st := oauthState{State: rand.Text(), Verifier: rand.Text() + rand.Text(), Next: safeNext(r.URL.Query().Get("next"))}
+	st := oauthState{State: rand.Text(), Verifier: rand.Text() + rand.Text(), Next: safeNext(q.Get("next"))}
 	if err := d.sessions.Write(w, oauthCookie, st, oauthTTL, d.guard.Secure()); err != nil {
 		log.Printf("sign-in: seal state: %v", err)
 		signInFailed(w, r, "server")
