@@ -1,3 +1,89 @@
 /* What the join page adds: the live session, the next session, the latest answers. Owned by the cards, the join page and the stats pages (worker 9) of the
    parallel build (notes/phase-2-plan.md). It is loaded after app.css, so a rule here wins over
    the rule it replaces there. */
+
+/* A live session: the room's live label, then its title. */
+.gate-live {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+.gate-live-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font: 500 12px/16px var(--mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--blue);
+}
+.gate-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--blue);
+  animation: gate-breathe 2.4s var(--ease) infinite;
+}
+@keyframes gate-breathe {
+  50% {
+    opacity: 0.45;
+    transform: scale(0.8);
+  }
+}
+.gate-live-title {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.gate-next {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.gate-next svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+  color: var(--muted);
+}
+
+/* The latest answers: titles that open their public pages. */
+.gate-answers {
+  padding-top: 16px;
+  border-top: 1px solid var(--hairline);
+}
+.gate-answers h2 {
+  font: 500 12px/16px var(--mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.gate-answers ul {
+  list-style: none;
+  margin: 4px -8px 0;
+}
+.gate-answers li a {
+  display: block;
+  padding: 8px;
+  border-radius: 8px;
+  color: var(--ink);
+  font-weight: 500;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+  transition: background-color 0.15s var(--ease);
+}
+.gate-answers li a:hover {
+  background: rgba(20, 21, 26, 0.05);
+}
+.gate-more {
+  display: inline-block;
+  margin-top: 8px;
+  border-radius: 4px;
+  font-weight: 600;
+  text-decoration: none;
+}
+.gate-more:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
