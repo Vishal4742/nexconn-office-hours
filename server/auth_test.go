@@ -322,7 +322,7 @@ func TestCallbackSignsTheUserIn(t *testing.T) {
 func TestNobodyIsCalledLikeTheBot(t *testing.T) {
 	// A GitHub name is free text. In the chat, someone called "Office Hours" would look like the
 	// sender of the cards, so that one name falls back to the login.
-	for _, name := range []string{"Office Hours", "  office hours ", "OFFICE HOURS"} {
+	for _, name := range []string{"Office Hours", "  office hours ", "OFFICE HOURS", "Office  Hours", "Office\u00a0Hours"} {
 		a := newAuthApp(t)
 		a.gh.userReply = `{"id":7,"login":"quiet-dev","name":"` + name + `","avatar_url":""}`
 		res := a.signIn(t, "")

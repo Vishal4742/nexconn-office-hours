@@ -150,10 +150,12 @@ func (d deps) callback(w http.ResponseWriter, r *http.Request) {
 // called like the bot. A GitHub name is free text, and in the chat a person named "Office Hours"
 // would look like the sender of the cards.
 func displayName(u github.User) string {
-	if name := u.DisplayName(); !strings.EqualFold(strings.TrimSpace(name), botName) {
-		return name
+	name := u.DisplayName()
+	// Any run of spaces counts as one, so "Office  Hours" does not slip through.
+	if strings.EqualFold(strings.Join(strings.Fields(name), " "), botName) {
+		return u.Login
 	}
-	return u.Login
+	return name
 }
 
 // logout clears the session cookie (FR-AUTH-4). It needs our Origin, so another site can't sign
