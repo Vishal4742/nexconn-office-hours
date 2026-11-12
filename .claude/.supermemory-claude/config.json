@@ -1,6 +1,0 @@
-{
-  "baseUrl": "http://localhost:6768",
-  "apiVersion": "v5",
-  "namespace": "nexconn-office-hours",
-  "repoContainerTag": "nexconn-office-hours"
-}

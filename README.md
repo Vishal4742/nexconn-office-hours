@@ -4,14 +4,10 @@ Live office hours for open-source projects. Contributors raise a hand with their
 
 Built with the [Nexconn](https://www.nexconn.ai) Chat SDK and Chat UI for the Nexconn Build Challenge 2026. Go server, TypeScript UI.
 
-> Status: in development. See `docs/PHASES.md`.
+Live at https://office-hours-oss.vercel.app
 
 ## Docs
-- `docs/PRD.md`: problem, users, goals, scope
-- `docs/SRS.md`: requirements (IDs used by specs, tests and commits)
-- `docs/ARCHITECTURE.md`: design, data model, Nexconn mapping
-- `docs/PHASES.md`: build plan and gates
-- `docs/WORKFLOW.md`: how we build (agents included)
+- `docs/UI.md`: UI direction and screens
 
 ## Run locally
 ```bash
