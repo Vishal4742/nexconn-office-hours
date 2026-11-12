@@ -89,6 +89,9 @@ func TestValidOwnerRepo(t *testing.T) {
 		{"under_score", "stash", false},
 		{"paperplane", "sta sh", false},
 		{"paperplane", "st/ash", false},
+		{"paperplane", ".", false}, // GitHub has no such repos, and as path parts they mean "here" and "up"
+		{"paperplane", "..", false},
+		{"paperplane", ".github", true},
 	}
 	for _, tt := range tests {
 		if got := validOwnerRepo(tt.owner, tt.repo); got != tt.want {
