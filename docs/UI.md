@@ -162,6 +162,11 @@ Sources: `docs.nexconn.ai/chatui-web/*.md`, `github.com/NexconnAI-Dev/nexconn-ch
 - A muted member's message stays in the list with a small red "!" and no reason. The room should say "You are muted until 14:05" above the input and disable it, since our server knows.
 - The first connection of a visit takes 1.2 to 1.5 s (5 s once) and history arrives a moment later: the chat card needs a loading state.
 - Input menu: `cloneInputMenu()` → edit `items` → `setInputMenu()`. Ids: `EMOJI | IMAGES | FILES | PHOTO | PLUS`. Language `en_US` is the default; `registerLanguagePack` rewrites any string.
+- Message menu (right click, or the "⋯" on hover): `cloneMessageMenu()` → filter → `setMessageMenu()`, before `ready()`. Ids: `REPLY | MULIT_CHOICE | COPY | FORWARD | SPEECH_TO_TEXT | CANCEL_SPEECH_TO_TEXT | DELETE_FOR_ME | DELETE_FOR_ALL`. The room keeps Reply, Copy and the two deletes.
+- **Tried between two users in the real room (2026-11-12), all work:** text, an @mention (typing `@` lists "@all", the bot and the other members), a reply, read receipts ("Read: 1, Unread: 1" on my own message, a green mark once someone read it), an image and a file (both upload to Nexconn's storage; an image is sent at once, with no confirm step). An image bubble shows a square crop of the picture.
+- A reply bubble prints the quoted author's **raw user id**. We replace it with the name (`web/src/nexconn/replyNames.ts`); the composer's own "Reply X:" line was always right.
+- Someone who joins a room sees **no earlier messages** unless the Console switch "Enable pre-join history access by new member" is on (Chat → Chat settings → Group Channels). The owner should turn it on: a person who joins in the middle of a session should see how it started.
+- The first connection from a browser can time out once (code 35008 after two tries of 10 s and 5 s). The banner's "Try again" connected at once. Connecting took between 1.3 s and 6 s on this day, so the room says "Opening the room…" until the list is in.
 
 ### Decisions this forces (owner-approved 2026-11-12)
 1. Accent `#1723E2` → **`#0047FF`**, Chat UI's own send-button blue, so the parts we can't restyle match ours. Wash `#EEF2FF`.
