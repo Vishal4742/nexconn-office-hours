@@ -173,6 +173,7 @@ func newMux(cfg config, d deps) *http.ServeMux {
 	mux.HandleFunc("GET /auth/github/callback", d.callback)
 	mux.HandleFunc("POST /auth/logout", d.logout)
 	mux.HandleFunc("GET /api/me", d.me)
+	mux.HandleFunc("POST /api/nexconn/token", d.nexconnToken) // FR-AUTH-2
 
 	mux.HandleFunc("GET /api/config", func(w http.ResponseWriter, _ *http.Request) {
 		if cfg.AppKey == "" || cfg.Area == "" {

@@ -19,13 +19,8 @@ import {
 } from "@nexconn/chatui";
 import type { ServiceHooks } from "@nexconn/chatui";
 
-import {
-  BOT_ID,
-  OhFaqCard,
-  OhHandCard,
-  OhSessionCard,
-  isFromBot,
-} from "./bubbles";
+import { OhFaqCard, OhHandCard, OhSessionCard } from "../nexconn/cardElements";
+import { BOT_ID, isFromBot } from "../nexconn/cards";
 
 export const SPIKE_GROUP = "ohspike1";
 const NAMES: Readonly<Record<string, string>> = {
