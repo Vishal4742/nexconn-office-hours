@@ -2,7 +2,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError } from "./api";
 import {
+  joinProject,
+  listMembers,
   listMyProjects,
+  loadProject,
   parseRepo,
   registerProject,
   roomPath,
@@ -23,7 +26,7 @@ function stubFetch(status: number, body: string) {
 afterEach(() => vi.unstubAllGlobals());
 
 const stash = {
-  id: "abcdefghijklmnopqrstuvwx23",
+  groupId: "pabcdefghijklmnopqrstuvwx23",
   owner: "PaperPlane",
   repo: "Stash",
   description: "A tiny HTTP cache.",
@@ -122,9 +125,9 @@ describe("projects API", () => {
   it("a reply that is not what we expect is an error a person can read", async () => {
     for (const data of [
       `null`,
-      `{"id":"x"}`,
-      `[{"id":"x","owner":"a"}]`,
-      `[{"id":1,"owner":"a","repo":"b","description":"","isMember":true,"isMaintainer":true}]`,
+      `{"groupId":"x"}`,
+      `[{"groupId":"x","owner":"a"}]`,
+      `[{"groupId":1,"owner":"a","repo":"b","description":"","isMember":true,"isMaintainer":true}]`,
     ]) {
       stubFetch(200, `{"ok":true,"data":${data}}`);
       const failure = await listMyProjects().catch((error: unknown) => error);
@@ -135,5 +138,75 @@ describe("projects API", () => {
     await expect(
       registerProject({ owner: "a", repo: "b" }),
     ).rejects.toBeInstanceOf(ApiError);
+  });
+});
+
+describe("the room's API", () => {
+  const name = { owner: "PaperPlane", repo: "Stash.js" };
+  const visitorView = {
+    owner: "PaperPlane",
+    repo: "Stash.js",
+    description: "",
+    isMember: false,
+    isMaintainer: false,
+  };
+
+  it("FR-PROJ-3: reads a project's page data; a visitor is not told the chat room", async () => {
+    const fetchMock = stubFetch(
+      200,
+      JSON.stringify({ ok: true, data: visitorView }),
+    );
+    await expect(loadProject(name)).resolves.toEqual(visitorView);
+    expect(fetchMock.mock.calls[0]).toEqual([
+      "/api/p/PaperPlane/Stash.js",
+      { method: "GET" },
+    ]);
+  });
+
+  it("FR-PROJ-4: joining is a JSON POST and answers with the project as a member sees it", async () => {
+    const memberView = { ...visitorView, isMember: true, groupId: "pabc" };
+    const fetchMock = stubFetch(
+      200,
+      JSON.stringify({ ok: true, data: memberView }),
+    );
+    await expect(joinProject(name)).resolves.toEqual(memberView);
+    const [path, init] = fetchMock.mock.calls[0] as unknown as [
+      string,
+      RequestInit,
+    ];
+    expect(path).toBe("/api/p/PaperPlane/Stash.js/join");
+    expect(init.method).toBe("POST");
+    expect(init.body).toBe("{}");
+  });
+
+  it("FR-PROJ-4: lists the room's people for the chat's names and avatars", async () => {
+    const people = [
+      { userId: "gh42", name: "Mia K", avatarUrl: "https://a.example/42" },
+      { userId: "gh7", name: "quiet-dev", avatarUrl: "" },
+    ];
+    const fetchMock = stubFetch(
+      200,
+      JSON.stringify({ ok: true, data: people }),
+    );
+    await expect(listMembers(name)).resolves.toEqual(people);
+    expect(fetchMock.mock.calls[0]).toEqual([
+      "/api/p/PaperPlane/Stash.js/members",
+      { method: "GET" },
+    ]);
+  });
+
+  it("a member list that is not one is an error a person can read", async () => {
+    for (const data of [
+      `null`,
+      `{}`,
+      `[{"userId":"gh42"}]`,
+      `[{"userId":"gh42","name":7,"avatarUrl":""}]`,
+      `[{"userId":"gh42","name":"","avatarUrl":""}]`,
+    ]) {
+      stubFetch(200, `{"ok":true,"data":${data}}`);
+      const failure = await listMembers(name).catch((error: unknown) => error);
+      expect(failure, data).toBeInstanceOf(ApiError);
+      expect((failure as ApiError).message, data).toMatch(/unexpected/);
+    }
   });
 });

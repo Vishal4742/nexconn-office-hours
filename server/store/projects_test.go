@@ -234,3 +234,59 @@ func TestProjectsOf(t *testing.T) {
 		t.Fatalf("ProjectsOf for someone with no rooms = %+v, %v; want none", none, err)
 	}
 }
+
+func TestAddMemberAndMembers(t *testing.T) {
+	pool := testDB(t)
+	s, ctx := New(pool), context.Background()
+	// Mia has a display name; Diego's row has none, as rows written by hand may.
+	mustExec(t, pool, `INSERT INTO users (id, github_id, login, name, avatar_url) VALUES
+		('gh1', 1, 'mia-k', 'Mia K', 'https://avatars.example/u/1'), ('gh2', 2, 'diego', '', ''), ('gh3', 3, 'ana', 'Ana', '')`)
+	if _, _, err := s.CreateProject(ctx, Project{ID: "aaaa", GitHubID: 1001, Owner: "paperplane", Repo: "stash"}, "gh1"); err != nil {
+		t.Fatalf("CreateProject: %v", err)
+	}
+	if _, _, err := s.CreateProject(ctx, Project{ID: "bbbb", GitHubID: 1002, Owner: "ana", Repo: "atlas"}, "gh3"); err != nil {
+		t.Fatalf("CreateProject: %v", err)
+	}
+
+	// FR-PROJ-4: joining twice is one row, and gives no maintainer role.
+	for range 2 {
+		if err := s.AddMember(ctx, "aaaa", "gh2"); err != nil {
+			t.Fatalf("AddMember: %v", err)
+		}
+	}
+	if n := count(t, pool, `SELECT count(*) FROM members WHERE project_id = 'aaaa' AND user_id = 'gh2'`); n != 1 {
+		t.Fatalf("members rows after joining twice = %d, want 1", n)
+	}
+	if p, _, err := s.ProjectByRepo(ctx, "paperplane", "stash", "gh2"); err != nil || !p.IsMember || p.IsMaintainer {
+		t.Fatalf("after joining: member %v, maintainer %v, err %v; want a member only", p.IsMember, p.IsMaintainer, err)
+	}
+
+	// The room's people, in the order they came, each with a name the chat can show.
+	got, err := s.Members(ctx, "aaaa")
+	if err != nil {
+		t.Fatalf("Members: %v", err)
+	}
+	want := []Member{
+		{UserID: "gh1", Name: "Mia K", AvatarURL: "https://avatars.example/u/1"},
+		{UserID: "gh2", Name: "diego"}, // no display name: the login stands in, Chat UI needs a name
+	}
+	if len(got) != len(want) {
+		t.Fatalf("Members = %+v, want %+v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("member %d = %+v, want %+v", i, got[i], want[i])
+		}
+	}
+	// Another room's people are not in it, and a room nobody is in is empty.
+	if other, err := s.Members(ctx, "bbbb"); err != nil || len(other) != 1 || other[0].UserID != "gh3" {
+		t.Fatalf("Members of the other room = %+v, %v", other, err)
+	}
+	if none, err := s.Members(ctx, "no-such-project"); err != nil || len(none) != 0 {
+		t.Fatalf("Members of no project = %+v, %v; want none", none, err)
+	}
+
+	if err := s.AddMember(ctx, "aaaa", "gh404"); !errors.Is(err, ErrUnknownUser) {
+		t.Fatalf("AddMember for a user with no row: err = %v, want ErrUnknownUser", err)
+	}
+}

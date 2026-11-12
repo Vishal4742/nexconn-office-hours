@@ -7,6 +7,7 @@ import {
   isKnownMember,
   membersOf,
   rememberRoom,
+  strangers,
   userProfiles,
 } from "./roster";
 
@@ -59,5 +60,30 @@ describe("what Chat UI's hooks answer from, without the network", () => {
     rememberRoom("pabc", "paperplane/stash", [mia, quiet]);
     expect(membersOf("pabc")).toHaveLength(3);
     expect(membersOf("pxyz").map((m) => m.userId)).toEqual([BOT_ID, "gh7"]);
+  });
+
+  it("FR-PROJ-4: lists the senders a room has not heard of, each once", () => {
+    rememberRoom("pabc", "paperplane/stash", [mia]);
+    const from = (groupId: string, senderUserId: string) => ({
+      groupId,
+      senderUserId,
+    });
+    // Someone who joined after the room was opened writes twice; so does a second newcomer.
+    expect(
+      strangers("pabc", [
+        from("pabc", "gh7"),
+        from("pabc", "gh42"),
+        from("pabc", BOT_ID),
+        from("pabc", "gh7"),
+        from("pabc", "gh9"),
+      ]),
+    ).toEqual(["gh7", "gh9"]);
+    // Known people and the bot are no reason to ask the server again.
+    expect(
+      strangers("pabc", [from("pabc", "gh42"), from("pabc", BOT_ID)]),
+    ).toEqual([]);
+    // A message in another room says nothing about this one.
+    expect(strangers("pabc", [from("pxyz", "gh7")])).toEqual([]);
+    expect(strangers("pabc", [])).toEqual([]);
   });
 });
