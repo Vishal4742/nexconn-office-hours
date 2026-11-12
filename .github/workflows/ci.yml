@@ -40,7 +40,11 @@ jobs:
       - name: vet
         run: go -C server vet ./...
       - name: test
-        run: go -C server test ./...
+        run: |
+          set -o pipefail  # without it the step would report tee's result, not the tests'
+          go -C server test -v ./... | tee "$RUNNER_TEMP/go-test.log"
+          # A skipped test proves nothing: here every test has what it needs, the database included.
+          if grep -q -- '--- SKIP' "$RUNNER_TEMP/go-test.log"; then echo "A test was skipped in CI."; exit 1; fi
 
   web:
     name: Web

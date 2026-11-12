@@ -12,14 +12,13 @@ CREATE TABLE users (
 );                                            -- NFR-PRIV-1: no email address, here or anywhere
 
 CREATE TABLE projects (
-  id               TEXT PRIMARY KEY,          -- random: it names the Nexconn group, so it must not be guessable
-  owner            TEXT NOT NULL,
-  repo             TEXT NOT NULL,
-  description      TEXT NOT NULL DEFAULT '',
-  nexconn_group_id TEXT NOT NULL UNIQUE,
-  next_session_at  TIMESTAMPTZ,
-  created_by       TEXT NOT NULL REFERENCES users (id),
-  created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+  id              TEXT PRIMARY KEY,           -- random: the room's Nexconn group is 'p' || id, so nobody may guess it
+  owner           TEXT NOT NULL,              -- GitHub's own spelling
+  repo            TEXT NOT NULL,
+  description     TEXT NOT NULL DEFAULT '',
+  next_session_at TIMESTAMPTZ,
+  created_by      TEXT NOT NULL REFERENCES users (id),
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 -- FR-PROJ-2: one project per repository, whatever the letter case.
 CREATE UNIQUE INDEX projects_one_per_repo ON projects (lower(owner), lower(repo));
