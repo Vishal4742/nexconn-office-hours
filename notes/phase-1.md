@@ -138,3 +138,21 @@ Test data added to the Nexconn app: user `ohspikec`, group `ohspike2` with one m
 - **Left behind on purpose:** in the local database the test user `ohspikeb` and its membership of the test project; in the test room six messages, an image and a file.
 - **Checks:** gofmt clean · vet ok · coverage: main 91.8%, store 81.2%, github 92.1%, guard 95.7%, nexconn 97.1%, session 83.7% · web lint, typecheck, 70 tests, build: main bundle 241 kB (75 kB gzip), `room` 1.3 kB and `client` 4.3 kB in the lazy part, the SDK chunk unchanged.
 - **For slice 6b:** the room is one column inside the page's 1200 px; when the connection banner shows, the page is taller than the window by the banner's height. The layout slice makes the room fill what is left under the header and the banner, and adds the photo panel.
+
+## 2026-11-12 15:05 IST: slice 6b, the room as designed (`slice/p1-room-layout`)
+- **Removed (plan decision 10):** `GET /api/spike/token` with the `SPIKE` switch and its "local address only" rule, `GET /api/probe/cookie`, the `/spike` page with its own copy of the chat start, and their tests: 678 lines. A test written first says all three answer 404 even with `SPIKE=1` on a local `APP_URL`, and that `/spike` is "not found". `server/cmd/spike` stays until P2. The local server is started with `bash tools/dev.sh` again, without the switch.
+- **Built**, from the approved demo (`../design/office-hours-demo.html`, the room's markup and CSS values):
+  - `pages/Room.tsx`: the member's room is a grid, "head queue / chat queue", `minmax(0,1fr) 400px`. Head: brand, repo, "Not live", copy link, Dashboard, my avatar, and the headline "No session *right now.*". The tab's title is `owner/repo · Office Hours`.
+  - `room/QueuePanel.tsx`: the portrait photo (`web/public/panel-day.webp`, 75 kB, from `../design/assets`), a glass chip with up to three faces and the member count, and a glass card "No session right now".
+  - `room/JoinGate.tsx`: the landscape photo with one glass card. `room/CopyLink.tsx`: copies the room's address and says "Link copied" (or that copying failed and the link is in the address bar). `components/Avatar.tsx`: a picture, or initials.
+  - `App.tsx`: the page is a column of header, connection banner and main. On the room's route it is exactly as tall as the window and the site's header is left out.
+- **Looked at in Chrome:**
+  - 1920 px: the composition of the demo. Chat 1484 × 825, panel 400 × 934 from the top edge, no scroll. The chip says "2 members" with two faces.
+  - 1096 px: two columns, 660 + 400, headline visible.
+  - 371 px: a 56 px top row (logo, repo cut with an ellipsis, "Not live", copy link, avatar), the panel as a 162 px band of sky with the chip and the card, the chat 478 px high. No sideways scroll.
+  - Signed out (on `[::1]`, which has no session): the photo with the glass card and "Sign in with GitHub to join"; the SDK is not loaded; at 371 px the card is 339 px wide with a full-width button. An unregistered repo: "Nobody hosts office hours for … yet" with "Host office hours".
+  - A connection banner (a 36 px one put in by hand): the room got 36 px shorter and nothing scrolled.
+  - The copy button: "Link copied", back to rest after two seconds.
+- **Decisions:** the panel shows only what is real today (members, "no session"); the demo's clock, meta line and buttons come with sessions in P2 · on a narrow screen the band shows the sky, not the desk: 160 px can't hold both, and the cards belong over the sky · the room keeps a "Dashboard" link, since its top row replaces the site's header.
+- **Checks:** gofmt clean · vet ok · 224 server cases, none skipped (the removed tests account for the drop from 248) · coverage: main 91.1% · web lint, typecheck, 70 tests, build: main bundle 244 kB (76 kB gzip), the SDK chunk 1.44 MB (320 kB gzip) and `room` 1.3 kB behind the lazy import · no secret-looking string in the built app.
+- **Phase 1 is built.** What is left is its gate: AT-1, AT-2 and AT-3 on production, which waits for the first deployment (owner: Vercel and Neon, then the production OAuth app), a second GitHub account and an organization's repo. And the phase-close reviews (`docs/WORKFLOW.md` §3).

@@ -73,7 +73,7 @@ With a third test user on the existing `/spike` page, find out and write down: (
 - **Also tried once between two users** (FR-PROJ-4 names them): an image, a file, a reply, an @mention, a read receipt. Whatever fails comes out of the input menu and into the notes.
 - **Changed while building** (details in `notes/phase-1.md`): the two routes are `POST /api/p/{owner}/{repo}/join` and `GET /api/p/{owner}/{repo}/members`, found through the project's name like its page · the project id no longer leaves the server; members get the room's `groupId` instead · the member list does not carry the bot (the page's roster always has it) · the role check uses the answer of the project lookup, so the store's `IsMember` and `IsMaintainer` and the guard's roles wait for the first route that has only an id (P2).
 
-### 6b. `p1-room-layout` — the room as designed
+### 6b. `p1-room-layout` — the room as designed ✅ built 2026-11-12
 - **Files:** `src/room/QueuePanel.tsx` (the photo panel with "No session right now"; P2 fills it), layout and header per `docs/UI.md` S3 (two columns from 1040 px, stacked below until P2 has a queue to put in a tab), the connection banner in place. Deletes the Phase 0 test endpoint, `SPIKE`, the `/spike` page and the cookie probe (decision 10).
 
 ## Order
