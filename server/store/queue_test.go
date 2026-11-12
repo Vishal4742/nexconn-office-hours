@@ -646,3 +646,147 @@ func TestQueueLookups(t *testing.T) {
 		t.Errorf("People(nil) = %+v, %v", got, err)
 	}
 }
+
+// TestApplyWithTheRealRules plays one session through the store with queue.Step itself: the
+// rules decide, the store writes, and the snapshot shows the result.
+func TestApplyWithTheRealRules(t *testing.T) {
+	ctx := context.Background()
+	s, pool, session := queueDB(t)
+	mustExec(t, pool, `INSERT INTO users (id, github_id, login) VALUES ('gh4', 4, 'liwen'), ('gh5', 5, 'kofi')`)
+	at := func(seconds int) time.Time { return queueAt.Add(time.Duration(seconds) * time.Second) }
+	version := 0
+	apply := func(a queue.Action) Applied {
+		t.Helper()
+		ap, err := s.Apply(ctx, session, a)
+		if err != nil {
+			t.Fatalf("%s by %s: %v", a.Kind, a.ActorID, err)
+		}
+		version++
+		if ap.Version != version {
+			t.Fatalf("%s: version %d, want %d", a.Kind, ap.Version, version)
+		}
+		return ap
+	}
+	refused := func(a queue.Action, want error) {
+		t.Helper()
+		if _, err := s.Apply(ctx, session, a); !errors.Is(err, want) {
+			t.Fatalf("%s by %s: %v, want %v", a.Kind, a.ActorID, err, want)
+		}
+	}
+	raise := func(actor string, second int) int64 {
+		t.Helper()
+		h, ok := raisedIn(apply(queue.Action{Kind: queue.Raise, ActorID: actor, At: at(second), Title: "A question from " + actor}))
+		if !ok {
+			t.Fatalf("the raise of %s added no hand", actor)
+		}
+		return h
+	}
+	line := func() []int64 {
+		t.Helper()
+		snap, err := s.Queue(ctx, "aaaa")
+		if err != nil {
+			t.Fatalf("Queue: %v", err)
+		}
+		var ids []int64
+		for _, h := range snap.Open {
+			ids = append(ids, h.ID)
+		}
+		return ids
+	}
+
+	// FR-HAND-1, FR-QUEUE-1: four hands, first in, first out.
+	h2, h3, h4, h5 := raise("gh2", 60), raise("gh3", 70), raise("gh4", 80), raise("gh5", 90)
+	if got := line(); !slices.Equal(got, []int64{h2, h3, h4, h5}) {
+		t.Fatalf("line %v, want the order of raising", got)
+	}
+	refused(queue.Action{Kind: queue.Raise, ActorID: "gh2", At: at(200), Title: "A second question"}, queue.ErrAlreadyOpen) // FR-HAND-2
+
+	// FR-HAND-7: a +1 is stored and never moves the hand; one's own hand takes none.
+	apply(queue.Action{Kind: queue.Plus, ActorID: "gh3", HandID: h2, At: at(100)})
+	refused(queue.Action{Kind: queue.Plus, ActorID: "gh2", HandID: h2, At: at(100)}, queue.ErrOwnHand)
+	if n := count(t, pool, `SELECT count(*) FROM hand_plus WHERE hand_id = $1 AND user_id = 'gh3'`, h2); n != 1 {
+		t.Fatal("the +1 was not stored")
+	}
+
+	// FR-QUEUE-3: Next takes the first, and only one hand is answered at a time.
+	apply(queue.Action{Kind: queue.Next, ActorID: "gh1", At: at(120)})
+	refused(queue.Action{Kind: queue.Next, ActorID: "gh1", At: at(121)}, queue.ErrAnswering)
+	if n := count(t, pool, `SELECT count(*) FROM hands WHERE id = $1 AND status = 'answering' AND taken_by = 'gh1' AND taken_at = $2`, h2, at(120)); n != 1 {
+		t.Fatal("the first hand is not being answered by the maintainer")
+	}
+
+	// FR-QUEUE-8: Away sends it two places back: behind h3 and h4, ahead of h5.
+	apply(queue.Action{Kind: queue.Away, ActorID: "gh1", HandID: h2, At: at(180)})
+	if got := line(); !slices.Equal(got, []int64{h3, h4, h2, h5}) {
+		t.Fatalf("line after Away %v, want %v", got, []int64{h3, h4, h2, h5})
+	}
+
+	// FR-QUEUE-9: "I'm here" protects from Away.
+	apply(queue.Action{Kind: queue.Next, ActorID: "gh1", At: at(200)})
+	apply(queue.Action{Kind: queue.Here, ActorID: "gh3", HandID: h3, At: at(205)})
+	refused(queue.Action{Kind: queue.Away, ActorID: "gh1", HandID: h3, At: at(260)}, queue.ErrIsHere)
+
+	// FR-HAND-8, FR-FAQ-1: a duplicate joins the hand being answered, and Done counts both askers.
+	apply(queue.Action{Kind: queue.Merge, ActorID: "gh1", HandID: h5, At: at(270)})
+	draft := FAQDraft{Slug: "a-question-from-gh3", Title: "A question from gh3", Answer: "An answer of twenty characters or more.", AuthorID: "gh1"}
+	ap, entry, err := s.Done(ctx, session, queue.Action{Kind: queue.Done, ActorID: "gh1", HandID: h3, At: at(300)}, draft)
+	if err != nil {
+		t.Fatalf("Done: %v", err)
+	}
+	version++
+	if ap.Version != version || entry.AskedBy != 2 || entry.HandID != h3 {
+		t.Fatalf("Done: version %d (want %d), entry %+v; want it asked by the author and the merged one", ap.Version, version, entry)
+	}
+
+	// FR-HAND-4: only its author takes a hand back.
+	refused(queue.Action{Kind: queue.Withdraw, ActorID: "gh2", HandID: h4, At: at(310)}, queue.ErrNotYours)
+	apply(queue.Action{Kind: queue.Withdraw, ActorID: "gh4", HandID: h4, At: at(310)})
+
+	// FR-SESS-6, FR-HAND-6: last call refuses a raise; after reopening, the 60 s rule still holds.
+	apply(queue.Action{Kind: queue.LastCall, ActorID: "gh1", Closed: true, At: at(320)})
+	refused(queue.Action{Kind: queue.Raise, ActorID: "gh4", At: at(330), Title: "Too late"}, queue.ErrHandsClosed)
+	apply(queue.Action{Kind: queue.LastCall, ActorID: "gh1", Closed: false, At: at(335)})
+	var soon *queue.TooSoonError
+	if _, err := s.Apply(ctx, session, queue.Action{Kind: queue.Raise, ActorID: "gh5", At: at(120), Title: "Again"}); !errors.As(err, &soon) || soon.Wait != 30*time.Second {
+		t.Fatalf("a raise 30 s after the last one: %v, want a wait of 30s", err)
+	}
+
+	// FR-SESS-4, FR-SESS-7: the end carries the one still waiting, and the session takes nothing more.
+	apply(queue.Action{Kind: queue.End, ActorID: "gh1", Carry: true, At: at(400)})
+	refused(queue.Action{Kind: queue.Raise, ActorID: "gh4", At: at(500), Title: "After the end"}, queue.ErrNotLive)
+
+	snap, err := s.Queue(ctx, "aaaa")
+	if err != nil {
+		t.Fatalf("Queue: %v", err)
+	}
+	statuses := map[int64]queue.Status{}
+	for _, h := range snap.Closed {
+		statuses[h.ID] = h.Status
+	}
+	want := map[int64]queue.Status{h2: queue.Carried, h3: queue.Answered, h4: queue.Withdrawn, h5: queue.Merged}
+	if snap.Session.Live || snap.Session.Version != version || len(snap.Open) != 0 || len(statuses) != 4 {
+		t.Fatalf("after the end: session %+v, %d open, closed %v", snap.Session, len(snap.Open), statuses)
+	}
+	for id, status := range want {
+		if statuses[id] != status {
+			t.Errorf("hand %d is %q, want %q", id, statuses[id], status)
+		}
+	}
+	if n := count(t, pool, `SELECT count(*) FROM hands WHERE id = $1 AND merged_into = $2`, h5, h3); n != 1 {
+		t.Error("the merged hand does not point at the hand it joined")
+	}
+}
+
+// raisedIn is the id of the hand an action added.
+func raisedIn(ap Applied) (int64, bool) {
+	known := map[int64]bool{}
+	for _, h := range ap.Before.Hands {
+		known[h.ID] = true
+	}
+	for _, h := range ap.After.Hands {
+		if !known[h.ID] {
+			return h.ID, true
+		}
+	}
+	return 0, false
+}
