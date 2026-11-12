@@ -1,0 +1,3 @@
+/* The room's head with its controls and tabs, the your-turn banner and the sheets. Owned by the sheets and the room's head (worker 6) of the
+   parallel build (notes/phase-2-plan.md). It is loaded after app.css, so a rule here wins over
+   the rule it replaces there. */

@@ -1,12 +1,10 @@
-// Command server is the Office Hours backend: the JSON API, GitHub sign-in and the public FAQ pages
-// (still placeholders until P3).
+// Command server is the Office Hours backend: the JSON API, GitHub sign-in and the public FAQ pages.
 package main
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"html"
 	"log"
 	"net/http"
 	"os"
@@ -74,18 +72,23 @@ type tokenIssuer interface {
 	IssueToken(ctx context.Context, userID, name string) (string, error)
 }
 
-// deps are the outside systems the handlers use. A nil db, tokens, rooms, github, users or
-// projects means "not configured" and the routes that need it say so. guard and sessions are
-// always there: main refuses to start without APP_URL and AUTH_SECRET.
+// deps are the outside systems the handlers use. A nil db, tokens, rooms, chat, github or store
+// field means "not configured" and the routes that need it say so. guard and sessions are always
+// there: main refuses to start without APP_URL and AUTH_SECRET.
 type deps struct {
 	db       pinger
 	tokens   tokenIssuer
 	rooms    roomService
+	chat     chatService // what the server says in a room (notify.go)
 	guard    *guard.Guard
-	sessions *session.Codec
+	sessions *session.Codec // the cookie codec, not the office-hours sessions
 	github   *github.Client
 	users    userStore
 	projects projectStore
+	queue    queueStore   // api_queue.go
+	starts   sessionStore // shapes.go: starting and planning sessions
+	faq      faqStore     // shapes.go
+	stats    statsStore   // shapes.go
 }
 
 func newMux(cfg config, d deps) *http.ServeMux {
@@ -121,29 +124,37 @@ func newMux(cfg config, d deps) *http.ServeMux {
 		}{cfg.AppKey, cfg.Area}})
 	})
 
-	mux.HandleFunc("GET /p/{owner}/{repo}/faq", faqPlaceholder)
-	mux.HandleFunc("GET /p/{owner}/{repo}/faq/{slug}", faqPlaceholder)
-	return mux
-}
+	// Sessions and the queue (FR-SESS, FR-HAND, FR-QUEUE). A session and a hand are addressed by
+	// their own ids; the server finds the project, and with it the caller's role, from the id.
+	// Every route of the parallel build is registered here, so no part of it edits this file.
+	mux.HandleFunc("GET /api/p/{owner}/{repo}/queue", d.queuePage)
+	mux.HandleFunc("POST /api/p/{owner}/{repo}/sessions", d.startSession)
+	mux.HandleFunc("POST /api/p/{owner}/{repo}/next-session", d.setNextSession)
+	mux.HandleFunc("POST /api/sessions/{id}/end", d.endSession)
+	mux.HandleFunc("POST /api/sessions/{id}/lastcall", d.lastCall)
+	mux.HandleFunc("POST /api/sessions/{id}/hands", d.raiseHand)
+	mux.HandleFunc("POST /api/hands/{id}/withdraw", d.withdrawHand)
+	mux.HandleFunc("POST /api/hands/{id}/plus", d.plusHand)
+	mux.HandleFunc("POST /api/hands/{id}/here", d.imHere)
+	mux.HandleFunc("POST /api/sessions/{id}/next", d.nextHand)
+	mux.HandleFunc("POST /api/hands/{id}/skip", d.skipHand)
+	mux.HandleFunc("POST /api/hands/{id}/remove", d.removeHand)
+	mux.HandleFunc("POST /api/hands/{id}/away", d.awayHand)
+	mux.HandleFunc("POST /api/hands/{id}/merge", d.mergeHand)
+	mux.HandleFunc("POST /api/hands/{id}/done", d.doneHand)
+	mux.HandleFunc("POST /api/p/{owner}/{repo}/mute", d.muteMember) // FR-MOD-1
 
-// faqPlaceholder stands in for the server-rendered FAQ pages (FR-FAQ-3) until P3 replaces it with
-// html/template pages. It exists now so the first deploy can prove these routes reach Go.
-func faqPlaceholder(w http.ResponseWriter, r *http.Request) {
-	owner, repo, slug := r.PathValue("owner"), r.PathValue("repo"), r.PathValue("slug")
-	if !validOwnerRepo(owner, repo) || (slug != "" && !slugRe.MatchString(slug)) {
-		http.NotFound(w, r)
-		return
-	}
-	what := "FAQ list"
-	if slug != "" {
-		what = "FAQ entry: " + slug
-	}
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	fmt.Fprintf(w, `<!doctype html><html lang="en"><meta charset="utf-8">`+
-		`<meta name="viewport" content="width=device-width, initial-scale=1">`+
-		`<title>%[1]s FAQ · Office Hours</title><h1>%[1]s</h1><p>%[2]s</p>`+
-		`<p>The public FAQ pages arrive in P3. This page shows the route reaches the Go server.</p>`,
-		html.EscapeString(owner+"/"+repo), html.EscapeString(what))
+	// The FAQ (FR-FAQ) and the numbers (FR-MET-1).
+	mux.HandleFunc("POST /api/p/{owner}/{repo}/faq/similar", d.faqSimilar)
+	mux.HandleFunc("GET /api/p/{owner}/{repo}/faq/latest", d.faqLatest)
+	mux.HandleFunc("POST /api/faq/{id}/delete", d.deleteFAQ)
+	mux.HandleFunc("GET /api/p/{owner}/{repo}/stats", d.projectStats)
+	mux.HandleFunc("GET /api/stats", d.siteStats)
+
+	// The public FAQ pages are rendered here, not by the web app (FR-FAQ-3).
+	mux.HandleFunc("GET /p/{owner}/{repo}/faq", d.faqListPage)
+	mux.HandleFunc("GET /p/{owner}/{repo}/faq/{slug}", d.faqEntryPage)
+	return mux
 }
 
 // requestDeadline bounds every request. The slowest honest one (registering a repo: GitHub, three
@@ -227,10 +238,11 @@ func newDeps(ctx context.Context, cfg config) (deps, error) {
 	// A nil pointer inside an interface would not compare equal to nil, so each is set only when
 	// it exists.
 	if chat != nil {
-		d.tokens, d.rooms = chat, chat
+		d.tokens, d.rooms, d.chat = chat, chat, chat
 	}
 	if db != nil {
 		d.db, d.users, d.projects = db, db, db
+		d.queue, d.starts, d.faq, d.stats = db, db, db, db
 	}
 	return d, nil
 }

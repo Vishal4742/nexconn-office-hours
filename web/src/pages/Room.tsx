@@ -2,17 +2,23 @@ import { useEffect, useState } from "react";
 
 import { ApiError, errorMessage } from "../api";
 import { useAuth } from "../auth";
-import { Avatar } from "../components/Avatar";
 import { Header } from "../components/Header";
-import { Logo } from "../components/Icons";
 import { Link } from "../components/Link";
 import type { Person } from "../nexconn/roster";
-import { loadProject, roomPath } from "../projects";
+import { loadProject } from "../projects";
 import type { Project, RepoName } from "../projects";
+import { useQueue, watchQueue } from "../queue/store";
+import type { Hand } from "../queue/types";
 import { ChatRoom } from "../room/ChatRoom";
-import { CopyLink } from "../room/CopyLink";
 import { JoinGate } from "../room/JoinGate";
 import { QueuePanel } from "../room/QueuePanel";
+import { RoomHead } from "../room/RoomHead";
+import type { RoomTab } from "../room/RoomHead";
+import { DoneSheet } from "../room/sheets/DoneSheet";
+import { EndSessionSheet } from "../room/sheets/EndSessionSheet";
+import { RaiseHandSheet } from "../room/sheets/RaiseHandSheet";
+import { StartSessionSheet } from "../room/sheets/StartSessionSheet";
+import { YourTurnBanner } from "../room/YourTurnBanner";
 
 type Page =
   | { readonly status: "loading" }
@@ -124,58 +130,86 @@ type MemberRoomProps = {
   readonly groupId: string;
 };
 
+/** The one sheet that is open over the room, if any. */
+type OpenSheet =
+  | { readonly kind: "none" }
+  | { readonly kind: "start" }
+  | { readonly kind: "end" }
+  | { readonly kind: "raise" }
+  | { readonly kind: "done"; readonly hand: Hand };
+
 /**
  * The room as a member sees it: the session as a headline with the chat under it, and the photo
- * panel beside them. There are no sessions yet, so the headline says so.
+ * panel with the queue beside them. This function only puts the parts together and holds what
+ * they share (the queue, which sheet is open, which tab shows on a phone). It is a contract of
+ * the parallel build (notes/phase-2-plan.md): each part lives in its own file with fixed props.
  */
 function MemberRoom({ project, groupId }: MemberRoomProps) {
   const auth = useAuth();
+  const queueState = useQueue();
   const [members, setMembers] = useState<readonly Person[]>([]);
+  const [sheet, setSheet] = useState<OpenSheet>({ kind: "none" });
+  const [tab, setTab] = useState<RoomTab>("queue");
+  const { owner, repo, isMaintainer } = project;
+
+  useEffect(
+    () => watchQueue({ owner, repo, groupId, isMaintainer }),
+    [owner, repo, groupId, isMaintainer],
+  );
+
   const me = auth.status === "signedIn" ? auth.me : null;
-  const whoIAm = me
-    ? `${me.name}, ${project.isMaintainer ? "maintainer" : "member"}`
-    : "";
+  const queue = queueState.status === "ready" ? queueState.queue : null;
+  const session = queue?.session ?? null;
+  const waitingCount =
+    queue?.hands.filter((hand) => hand.status === "waiting").length ?? 0;
+  const closeSheet = () => setSheet({ kind: "none" });
 
   return (
-    <div className="room">
-      <header className="room-head">
-        <div className="rh-brand">
-          <Link href="/" className="brand" aria-label="Office Hours home">
-            <Logo />
-            <span className="brand-name">Office Hours</span>
-          </Link>
-          <span className="slash brand-name" aria-hidden="true">
-            /
-          </span>
-          <span className="repo" title={`${project.owner}/${project.repo}`}>
-            {project.owner}/{project.repo}
-          </span>
-          <span className="off">Not live</span>
-          <span className="grow" />
-          <div className="rh-controls">
-            <CopyLink path={roomPath(project)} />
-            <Link href="/dashboard" className="text-btn wide-only">
-              Dashboard
-            </Link>
-            {me && (
-              <span className="rh-me" title={whoIAm}>
-                <Avatar name={me.name} url={me.avatarUrl} />
-                <span className="sr-only">{whoIAm}</span>
-              </span>
-            )}
-          </div>
-        </div>
-        <h1 className="rh-title">
-          No session <span className="serif">right now.</span>
-        </h1>
-      </header>
+    <div className="room" data-tab={tab}>
+      <RoomHead
+        project={project}
+        me={me}
+        queue={queue}
+        tab={tab}
+        onTab={setTab}
+        onStart={() => setSheet({ kind: "start" })}
+        onEnd={() => setSheet({ kind: "end" })}
+      />
+      <YourTurnBanner queue={queue} />
       <ChatRoom
         groupId={groupId}
-        owner={project.owner}
-        repo={project.repo}
+        owner={owner}
+        repo={repo}
         onMembers={setMembers}
       />
-      <QueuePanel members={members} />
+      <QueuePanel
+        project={project}
+        members={members}
+        state={queueState}
+        onStart={() => setSheet({ kind: "start" })}
+        onRaise={() => setSheet({ kind: "raise" })}
+        onDone={(hand) => setSheet({ kind: "done", hand })}
+      />
+      {sheet.kind === "start" && (
+        <StartSessionSheet project={project} onClose={closeSheet} />
+      )}
+      {sheet.kind === "end" && session?.live && (
+        <EndSessionSheet
+          session={session}
+          waitingCount={waitingCount}
+          onClose={closeSheet}
+        />
+      )}
+      {sheet.kind === "raise" && session?.live && (
+        <RaiseHandSheet
+          project={project}
+          session={session}
+          onClose={closeSheet}
+        />
+      )}
+      {sheet.kind === "done" && (
+        <DoneSheet project={project} hand={sheet.hand} onClose={closeSheet} />
+      )}
     </div>
   );
 }

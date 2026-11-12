@@ -7,6 +7,7 @@ import { Dashboard } from "./pages/Dashboard";
 import { Landing } from "./pages/Landing";
 import { NotFound } from "./pages/NotFound";
 import { Room } from "./pages/Room";
+import { Stats } from "./pages/Stats";
 import { titleFor, useRoute } from "./router";
 
 export default function App() {
@@ -41,6 +42,13 @@ export default function App() {
             key={`${route.owner}/${route.repo}`.toLowerCase()}
             owner={route.owner}
             repo={route.repo}
+          />
+        )}
+        {route.name === "stats" && <Stats repo={null} />}
+        {route.name === "projectStats" && (
+          <Stats
+            key={`${route.owner}/${route.repo}`.toLowerCase()}
+            repo={{ owner: route.owner, repo: route.repo }}
           />
         )}
         {route.name === "notFound" && <NotFound />}

@@ -1,0 +1,3 @@
+/* What the join page adds: the live session, the next session, the latest answers. Owned by the cards, the join page and the stats pages (worker 9) of the
+   parallel build (notes/phase-2-plan.md). It is loaded after app.css, so a rule here wins over
+   the rule it replaces there. */
