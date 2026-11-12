@@ -25,11 +25,19 @@ describe("issueUrl", () => {
     expect([...url.searchParams.keys()]).toEqual(["title", "body"]);
   });
 
-  it("cuts a body that would make the address too long for GitHub", () => {
-    const body = new URL(
-      issueUrl(repo, "t", "x".repeat(9000)),
-    ).searchParams.get("body");
-    expect(body).toHaveLength(4000);
-    expect(body?.endsWith("…")).toBe(true);
+  it("FR-FAQ-5: cuts a body by its length in the address, also for letters outside ASCII", () => {
+    for (const letter of ["x", "é", "語", "🙂"]) {
+      const body =
+        new URL(issueUrl(repo, "t", letter.repeat(9000))).searchParams.get(
+          "body",
+        ) ?? "";
+      expect(encodeURIComponent(body).length).toBeLessThanOrEqual(4000);
+      expect(body.endsWith("…")).toBe(true);
+      expect(body.length).toBeGreaterThan(100);
+    }
+    const short = "A short question.";
+    expect(new URL(issueUrl(repo, "t", short)).searchParams.get("body")).toBe(
+      short,
+    );
   });
 });
