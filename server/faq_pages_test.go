@@ -99,7 +99,7 @@ func TestFAQPageStatuses(t *testing.T) {
 		mux := newMux(config{AppURL: testSite}, deps{})
 		for _, path := range []string{"/p/PaperPlane/Stash/faq", "/p/PaperPlane/Stash/faq/retry-only-on-5xx"} {
 			res, body := call(mux, "GET", path, "", nil)
-			faqPageCheck(t, path, res, body, http.StatusServiceUnavailable, "isn't set up")
+			faqPageCheck(t, path, res, body, http.StatusServiceUnavailable, "The FAQ isn&#39;t set up on this server yet")
 		}
 	})
 

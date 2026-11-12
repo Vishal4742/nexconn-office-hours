@@ -1,0 +1,180 @@
+{{/* What every FAQ page shares: the head, the style, the header. Each page defines "title",
+"meta" and "main". The tokens are the web app's (web/src/styles/tokens.css) with the dark column
+of docs/UI.md, and the fonts come from the same link as web/index.html. */}}
+{{define "page"}}<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>{{template "title" .}}</title>
+{{template "meta" .}}
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230047FF'/%3E%3Cpath d='M8 20a8 8 0 0 1 16 0z' fill='white'/%3E%3Ccircle cx='16' cy='24' r='2' fill='white'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500&amp;family=Instrument+Sans:wght@400..700&amp;family=Instrument+Serif:ital@1&amp;display=swap" rel="stylesheet">
+<style>
+:root {
+  --paper: #f7f6f2;
+  --surface: #ffffff;
+  --sunken: #eeece6;
+  --ink: #14151a;
+  --muted: #6b6d76;
+  --hairline: #e3e1da;
+  --blue: #0047ff;
+  --blue-hover: #0039cc;
+  --blue-ink: #ffffff;
+  --ring: 0 0 0 1px rgba(20, 21, 26, 0.08);
+  --glass: rgba(247, 246, 242, 0.78);
+  --sky-top: #9dbcda;
+  --sky-low: #e4ecf2;
+  --clouds: 0.95;
+  --on-sky: #14151a;
+  --on-sky-muted: #3b4250;
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --sans: "Instrument Sans", system-ui, sans-serif;
+  --serif: "Instrument Serif", Georgia, serif;
+  --mono: "Geist Mono", ui-monospace, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #0e0f13;
+    --surface: #15161b;
+    --sunken: #1b1c22;
+    --ink: #ecebe6;
+    --muted: #9a9ca6;
+    --hairline: #26282f;
+    --blue: #7a9bff;
+    --blue-hover: #94afff;
+    --blue-ink: #0e0f13;
+    --ring: 0 0 0 1px rgba(255, 255, 255, 0.09);
+    --glass: rgba(14, 15, 19, 0.72);
+    --sky-top: #121a2e;
+    --sky-low: #34425f;
+    --clouds: 0.28;
+    --on-sky: #ecebe6;
+    --on-sky-muted: #c9cad1;
+    color-scheme: dark;
+  }
+}
+*, *::before, *::after { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: 420 16px/24px var(--sans);
+  -webkit-font-smoothing: antialiased;
+  overflow-wrap: anywhere;
+}
+h1, h2, p, ul { margin: 0; padding: 0; }
+ul { list-style: none; }
+h1, h2 { font-weight: 500; text-wrap: balance; }
+a { color: var(--blue); text-underline-offset: 3px; }
+:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+svg { flex: none; }
+.mono { font-family: var(--mono); font-weight: 400; }
+.muted { color: var(--muted); }
+.serif { font-family: var(--serif); font-style: italic; font-weight: 400; letter-spacing: 0; color: var(--blue); }
+.eyebrow { font: 500 12px/16px var(--mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 8px 16px; border: 1px solid transparent; border-radius: 999px;
+  font: 600 14px/20px var(--sans); text-decoration: none; white-space: nowrap; cursor: pointer;
+  transition: background-color 0.15s var(--ease);
+}
+.btn svg { width: 16px; height: 16px; }
+.btn.sm { padding: 4px 12px; }
+.btn.primary { background: var(--blue); color: var(--blue-ink); }
+.btn.primary:hover { background: var(--blue-hover); }
+.btn.ghost { background: var(--surface); border-color: var(--hairline); color: var(--ink); }
+.btn.ghost:hover { background: var(--sunken); }
+.top {
+  position: sticky; top: 0; z-index: 1;
+  display: flex; align-items: center; gap: 16px;
+  height: 64px; padding: 0 24px;
+  background: var(--glass);
+  backdrop-filter: blur(16px) saturate(1.4); -webkit-backdrop-filter: blur(16px) saturate(1.4);
+  border-bottom: 1px solid var(--hairline);
+}
+.brand { display: inline-flex; align-items: center; gap: 8px; color: var(--ink); font-weight: 600; text-decoration: none; }
+.brand svg { width: 24px; height: 24px; }
+.repo { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 14px; text-decoration: none; }
+.repo:hover { color: var(--ink); }
+.band { position: relative; overflow: hidden; margin: 16px 16px 0; border-radius: 24px; }
+.band svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.hero { position: relative; max-width: 880px; margin: 0 auto; padding: 56px 24px 64px; color: var(--on-sky); }
+.hero .eyebrow { color: var(--on-sky-muted); }
+.hero h1 { margin-top: 12px; font-size: clamp(36px, 8vw, 48px); line-height: 1.05; letter-spacing: -0.022em; }
+.sub { margin-top: 16px; max-width: 560px; color: var(--on-sky-muted); font-size: 18px; line-height: 28px; }
+.wrap { max-width: 880px; margin: 0 auto; padding: 32px 24px 96px; }
+.narrow { max-width: 720px; }
+.search { display: flex; align-items: center; gap: 8px; padding: 4px 4px 4px 20px; border: 1px solid var(--hairline); border-radius: 999px; background: var(--surface); }
+.search:focus-within { border-color: var(--blue); }
+.search input { flex: 1; min-width: 0; padding: 8px 0; border: 0; background: none; color: inherit; font: inherit; outline: none; appearance: none; }
+.result { margin-top: 24px; color: var(--muted); }
+.cards { display: grid; gap: 12px; margin-top: 24px; }
+.card { padding: 16px; border-radius: 12px; background: var(--surface); box-shadow: var(--ring); }
+.cards .card { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 16px; color: var(--ink); text-decoration: none; transition: background-color 0.3s var(--ease); }
+.cards .card:hover { background: var(--sunken); }
+.q { font-size: 18px; line-height: 28px; font-weight: 500; }
+.a { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
+.by { grid-column: 2; grid-row: 1 / span 2; align-self: center; display: flex; align-items: center; gap: 8px; color: var(--muted); font: 400 12px/16px var(--mono); }
+.av { width: 24px; height: 24px; border-radius: 999px; object-fit: cover; background: var(--sunken); flex: none; }
+.empty { display: grid; justify-items: center; gap: 12px; padding: 48px 16px; text-align: center; }
+.empty h2 { font-size: 24px; line-height: 32px; }
+.actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; }
+.empty .actions, .notice .actions { justify-content: center; margin-top: 12px; }
+.back { display: inline-flex; align-items: center; gap: 4px; font-weight: 500; text-decoration: none; }
+.back:hover { text-decoration: underline; }
+.back svg { width: 16px; height: 16px; }
+article h1, .notice h1 { margin-top: 24px; font-size: clamp(28px, 7vw, 36px); line-height: 1.15; letter-spacing: -0.022em; }
+.byline { display: flex; align-items: center; gap: 8px; margin-top: 16px; color: var(--muted); font-size: 14px; line-height: 20px; }
+.text { white-space: pre-wrap; }
+.details { margin-top: 24px; padding-left: 16px; border-left: 2px solid var(--hairline); color: var(--muted); }
+.answer { margin-top: 32px; font-size: 18px; line-height: 28px; }
+.links { margin-top: 32px; }
+.links ul { display: grid; gap: 8px; margin-top: 8px; font: 400 14px/20px var(--mono); }
+.next { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; margin-top: 48px; }
+.next h2 { font-size: 16px; line-height: 24px; font-weight: 600; }
+.notice { padding-top: 96px; text-align: center; }
+.notice p { margin-top: 12px; }
+@media (max-width: 560px) {
+  .top { gap: 12px; padding: 0 16px; }
+  .brand span { display: none; }
+  .band { margin: 8px 8px 0; border-radius: 16px; }
+  .hero { padding: 40px 16px 48px; }
+  .wrap { padding: 24px 16px 64px; }
+  .cards .card { grid-template-columns: minmax(0, 1fr); }
+  .by { grid-column: auto; grid-row: auto; }
+  .notice { padding-top: 48px; }
+}
+</style>
+</head>
+<body>
+<header class="top">
+<a class="brand" href="/" aria-label="Office Hours home">{{template "logo"}}<span>Office Hours</span></a>
+{{if .Owner}}<a class="repo mono" href="{{.ListPath}}">{{.Owner}}/{{.Repo}}</a>
+<a class="btn primary sm" href="{{.RoomPath}}">Join the room</a>{{end}}
+</header>
+{{template "main" .}}
+</body>
+</html>
+{{end}}
+
+{{define "logo"}}<svg viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="6" fill="var(--blue)"/><path d="M6 15a6 6 0 0 1 12 0z" fill="#fff"/><circle cx="12" cy="18" r="1.6" fill="#fff"/></svg>{{end}}
+
+{{/* A person's picture, only from an address the page may load. The name beside it says who. */}}
+{{define "avatar"}}{{if webAddress .AvatarURL}}<img class="av" src="{{.AvatarURL}}" alt="" referrerpolicy="no-referrer" loading="lazy">{{end}}{{end}}
+
+{{/* Typed text, kept as text, with its http and https addresses as links (NFR-SEC-6). */}}
+{{define "text"}}{{range linked .}}{{if .Href}}<a href="{{.Href}}" rel="noopener noreferrer nofollow">{{.Text}}</a>{{else}}{{.Text}}{{end}}{{end}}{{end}}
+
+{{/* The misty sky behind the FAQ's header (docs/UI.md §1), drawn here so nothing is fetched. */}}
+{{define "sky"}}<svg viewBox="0 0 1440 520" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><defs>
+<linearGradient id="sky-fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color:var(--sky-top)"/><stop offset="1" style="stop-color:var(--sky-low)"/></linearGradient>
+<filter id="sky-clouds" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency=".0026 .0082" numOctaves="5" seed="28"/><feColorMatrix values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  2.3 0 0 0 -1.1"/></filter>
+<linearGradient id="sky-fade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".25"/><stop offset=".8" stop-color="#fff"/></linearGradient>
+<mask id="sky-mask"><rect width="1440" height="520" fill="url(#sky-fade)"/></mask>
+<filter id="sky-grain"><feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" stitchTiles="stitch"/><feColorMatrix type="saturate" values="0"/><feComponentTransfer><feFuncA type="linear" slope=".12"/></feComponentTransfer></filter>
+</defs><rect width="1440" height="520" fill="url(#sky-fill)"/><rect width="1440" height="520" filter="url(#sky-clouds)" mask="url(#sky-mask)" style="opacity:var(--clouds)"/><rect width="1440" height="520" filter="url(#sky-grain)" style="mix-blend-mode:multiply"/></svg>{{end}}

@@ -1,0 +1,9 @@
+{{define "title"}}{{.Title}} · Office Hours{{end}}
+
+{{define "meta"}}<meta name="robots" content="noindex">{{end}}
+
+{{define "main"}}<main class="wrap narrow notice">
+<h1>{{.Title}}</h1>
+<p class="muted">{{.Text}}</p>
+{{with .Link}}<div class="actions"><a class="btn primary" href="{{.}}">{{$.LinkText}}</a></div>{{end}}
+</main>{{end}}

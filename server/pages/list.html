@@ -1,0 +1,41 @@
+{{define "title"}}{{.Owner}}/{{.Repo}} FAQ · Office Hours{{end}}
+
+{{define "meta"}}<meta name="description" content="Questions about {{.Owner}}/{{.Repo}}, answered live by its maintainers in office hours.">
+<meta property="og:title" content="{{.Owner}}/{{.Repo}} FAQ">
+<meta property="og:description" content="Questions about {{.Owner}}/{{.Repo}}, answered live by its maintainers in office hours.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="{{.ListURL}}">
+<meta property="og:site_name" content="Office Hours">
+<meta name="twitter:card" content="summary">
+<link rel="canonical" href="{{.ListURL}}">{{end}}
+
+{{/* The count in the header is the whole FAQ's, so it is shown only when the page lists it all. */}}
+{{define "main"}}<main>
+<div class="band">{{template "sky"}}<div class="hero">
+<p class="eyebrow">{{.Owner}}/{{.Repo}} · FAQ{{if and .Entries (not .Query) (not .Cut)}} · [ {{count (len .Entries) "answer"}} ]{{end}}</p>
+<h1>Asked live, <span class="serif">answered once.</span></h1>
+<p class="sub">Every answer here was given live in office hours. Search them before you raise a hand.</p>
+</div></div>
+<div class="wrap">
+{{if or .Entries .Query}}<form class="search" method="get" action="{{.ListPath}}" role="search">
+<input type="search" name="q" value="{{.Query}}" maxlength="100" placeholder="Search the answers" aria-label="Search the answers">
+<button class="btn primary" type="submit">Search</button>
+</form>{{end}}
+{{if .Query}}{{if .Entries}}<p class="result">{{if .Cut}}The best {{end}}{{count (len .Entries) "answer"}} for “{{.Query}}” · <a href="{{.ListPath}}">Show all answers</a></p>
+{{else}}<div class="empty">
+<h2>No answer matches “{{.Query}}”</h2>
+<p class="muted">Ask it live in the room. Every answer given there is added here.</p>
+<div class="actions"><a class="btn primary" href="{{.RoomPath}}">Join the room</a><a href="{{.ListPath}}">Show all answers</a></div>
+</div>{{end}}
+{{else if not .Entries}}<div class="empty">
+<h2>No answers yet</h2>
+<p class="muted">They appear here as soon as a maintainer answers a question live in the room.</p>
+<div class="actions"><a class="btn primary" href="{{.RoomPath}}">Join the room</a></div>
+</div>
+{{else if .Cut}}<p class="result">Showing the newest {{count (len .Entries) "answer"}}. Search to find older ones.</p>
+{{end}}
+{{with .Entries}}<ul class="cards">
+{{range .}}<li><a class="card" href="{{$.EntryPath .Slug}}"><span class="q">{{.Title}}</span><span class="a">{{start .Answer 160}}</span><span class="by">{{template "avatar" .Author}}{{with .Author.Login}}<span>@{{.}}</span>{{end}}<time datetime="{{iso .CreatedAt}}">{{day .CreatedAt}}</time></span></a></li>
+{{end}}</ul>{{end}}
+</div>
+</main>{{end}}
