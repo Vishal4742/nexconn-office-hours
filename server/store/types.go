@@ -10,9 +10,6 @@ import (
 // The shapes the queue, the FAQ and the stats pass between the store and the handlers. This file
 // is a contract: it is frozen while the parallel build of Phase 2 runs (notes/phase-2-plan.md).
 
-// ErrNotBuilt is what a store method answers until its worker has built it.
-var ErrNotBuilt = errors.New("store: not built yet")
-
 // ErrSessionLive refuses a second live session in one project (FR-SESS-2).
 var ErrSessionLive = errors.New("store: the project already has a live session")
 

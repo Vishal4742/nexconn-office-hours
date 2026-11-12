@@ -60,10 +60,11 @@ func trimAddress(addr string) string {
 }
 
 // webAddress reports whether s is a whole http or https address with a host: the only kind of
-// address from outside that a page links to.
+// address from outside that a page links to. One with a login before its host is not: in
+// "https://github.com@evil.example" the host is evil.example, while the text reads like GitHub.
 func webAddress(s string) bool {
 	u, err := url.Parse(s)
-	return err == nil && (u.Scheme == "http" || u.Scheme == "https") && u.Hostname() != ""
+	return err == nil && (u.Scheme == "http" || u.Scheme == "https") && u.Hostname() != "" && u.User == nil
 }
 
 // ownPath reports whether s is a path on our own origin. A browser reads "//host" and "/\host"
