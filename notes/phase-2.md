@@ -54,11 +54,48 @@ The ten workers ran on Fable 5.2 until the account's 5-hour limit stopped them a
 | Control characters (lead) | #17 | `cleanLine`/`cleanText` drop NUL and other non-space controls (NFR-SEC-3) | test first, then fix; CI green | Found by workers 3 and 8: a NUL reached Postgres (`22021`) and gave a 500 |
 | FAQ and stats API (worker 8) | #16 | similar (3), latest (5), delete, stats of a project and of the site (FR-FAQ-4, 6, FR-PROJ-3, FR-MET-1) | 7 tests, 35 subtests; 40 of 41 deliberate bugs caught; CI green | One SQL statement for the five numbers; "sessions held" counts the live one |
 | Queue rules (worker 1) | #18 | `queue.Step`, every row of plan §4 | 99.2 % coverage (100 % of `step.go`); 6,000 random actions keep the invariants; 77 of 79 deliberate bugs caught; CI green | Read in full. A closed hand named by an action is `ErrNoSuchHand`; Skip, Remove and Done keep when the hand was taken (the median needs it) |
+| Sessions (worker 2) | #19 | start (GitHub asked again: yes, a clear no that removes the role, anything else refused without removing), end with carry-over and the ended card, last call, next session time (FR-SESS-1..7) | 101 route and 19 store tests; 81 deliberate bugs all caught; CI green | A private repo now refuses the start; a missing `carry` means true; the room hears about last call only when it changed |
+| Maintainer actions (worker 4) | #22 | Next, Skip, Remove, Away (with the line the room is told), Merge, Done with the FAQ entry and its card, Mute; `slugOf` (FR-QUEUE-3, 8, FR-HAND-8, FR-FAQ-1, 2, FR-MOD-1) | 7 tests, 65 cases; fuzzing `slugOf` over 4.2 million titles; CI green | Links with a name or password before the host are refused (`https://github.com@evil.example`) |
+| Cards, join page, stats pages (worker 9) | #21 | the three cards with live hand status, FAQ and issue links, "Remove from the FAQ" for maintainers; the join page's live session, next time and latest answers; the stats pages (FR-HAND-5, FR-FAQ-2, 5, 6, FR-PROJ-3, FR-MET-1) | 156 new web tests; CI green | Card links built from the slug on our origin, only for the watched room's own messages |
+| A past plan is no plan (lead) | #23 | `store.Queue` reports `next_session_at` only while it is to come (FR-SESS-5) | test first; CI green | From worker 2: starting a session does not clear the plan |
+| Local start script (lead) | #24 | `tools/dev.sh` unsets `PGUSER` and the other libpq variables | local server back to `db: up` | Neon's settings pasted into the local `.env` made the local server log in as the production user |
+| Migration says where (lead) | #26 | `cmd/migrate` prints the variable it used and the database's host | test first; CI green | The owner's first production migration silently ran against the local database (zsh stopped reading `.env` at an unquoted `&`) |
+| Queue panel (worker 5) | #25 | the store that keeps the queue current (ping rules, one fetch at a time, one clock, NFR-PERF-1 log) and the panel in every state for members and maintainers, with the four controls that had no button (FR-QUEUE-4..9, FR-HAND-4, 7, 8, FR-SESS-5, 6, FR-FAQ-5, 6, FR-MOD-1) | 98 new web tests; CI green; looked at in `/dev/room` at 1440 and 375 px | Added `actOnQueue` so an answer about another room never becomes this room's queue; worker 6 was told to use it |
+| Public FAQ pages (worker 7) | #27 | the FAQ store (list, search, suggestions, delete) and the Go-rendered list, entry, 404 and 410 pages with link previews (FR-FAQ-3..6, FR-HAND-3) | 17 tests, 106 subtests; both searches use the indexes on 20,000 rows; CI green | Typed text stays text; only http and https become links, with `rel="noopener noreferrer nofollow"`; search text drops NUL and broken UTF-8 |
 
 **Seams to check later (from the workers' reports):**
+- Checked: `ProjectOfFAQ` finds deleted entries, so deleting twice answers 200.
+- The FAQ pages are cached for 60 s with `max-age`; Vercel's edge would need `s-maxage` too (worker 7).
+- The re-check at session start asks GitHub by the registered name; after a rename where someone took the old name, a maintainer who still has rights is refused (409, nothing removed). Asking by id needs a new `server/github` method (worker 2).
+- A muted member can't be told "muted until …": the server keeps no record of mutes (worker 4).
+- `actionApply` (worker 4) and `handAct` (worker 3) are the same ten lines for two roles.
+- On a phone-sized panel the waiting card leaves little room for its rows; look again once the phone tabs exist (worker 6).
 - Deleting a FAQ entry twice answers 200 only if worker 7's `ProjectOfFAQ` also finds deleted entries.
 - A delete does not tell the room; another page keeps the entry's link until its next queue read, and the link then shows the 410 page.
 - A title of ten zero-width spaces counts as 10 characters and looks blank. A maintainer can remove it.
 
 ## The real rules through the store (lead)
 `TestApplyWithTheRealRules` plays one session through `store.Apply` with `queue.Step` itself on real Postgres: four hands in the order raised, a second open hand refused, a +1 stored (and refused on one's own hand), Next and a second Next refused, Away two places back (h3, h4, h2, h5 in the snapshot), "I'm here" protecting from Away, a merge and a Done whose entry counts two askers, withdraw only by the author, last call refusing a raise, the 60 s rule after reopening (a 30 s wait), the end carrying the one still waiting, and nothing accepted after it. The version goes up by one with every allowed action. Passed on its first run.
+
+
+## One person through the whole room, locally (lead, 2026-11-12 17:37–17:39 IST)
+On `main` with eight of the ten slices merged, signed in as the owner (maintainer of the test project), the local Go server and Vite, the real Nexconn app and GitHub. The parts without a sheet yet (start, raise, done) were called with `fetch` from the page; Next was pressed in the panel.
+```
+POST …/sessions {title, plannedMinutes: 45}  200, live, number 1, version 1   (GitHub re-check passed with the owner's token)
+  → chat: OFFICE HOURS STARTED · Integration run, part one; panel: Live · No hands yet · Next question
+POST /api/sessions/{id}/hands                 200, version 2, isMine
+  → chat: "@Vishal4742 raised a hand" card, status "In line"; panel: You're next, waiting 1
+click Next question                           → card "Being answered now"; Now answering card with Done / Skip / Away, the link in the details
+POST /api/hands/{id}/done {answer, links}     200, version 4, answered, faqId set, slug of 52 characters
+  → chat: ADDED TO FAQ card (asked by @Vishal4742, Read the answer, Open a GitHub issue, Remove from the FAQ); hand card "Answered"
+GET /p/{owner}/{repo}/faq/{slug}              the entry page, dark mode, three outside links with rel="noopener noreferrer nofollow", no script
+POST /api/sessions/{id}/end {carry: true}     200, live false, version 5
+  → chat: OFFICE HOURS ENDED · 1 answered; panel: Session ended, plan the next session, Start a session
+console: NFR-PERF-1 queue ping to store: 329 ms (session 1, version 5)
+```
+Seen on the way: the room's head still says "No session right now" (worker 6's part, not merged yet), and after an action the panel had scrolled a little so its top chips were cut. Both are for the two-user run.
+
+## Hosting, continued (2026-11-12)
+- 17:16 The owner created the Neon database (Singapore) and connected it to project `web` with the prefix `DATABASE`, so the variable is `DATABASE_URL`.
+- 17:33 Production migrated by the owner from their own terminal (this session's safety check refused a write to production): `applied 001_init.sql`, `applied 002_queue.sql`.
+- Waiting for the eight app values in Vercel; until then the live `/api/health` answers `FUNCTION_INVOCATION_FAILED` (the server stops at start without `AUTH_SECRET`).

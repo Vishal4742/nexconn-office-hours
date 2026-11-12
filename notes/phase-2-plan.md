@@ -158,9 +158,9 @@ Each has one area and owns its files alone. "Reads" lists what to read before wr
 | Step | State |
 |---|---|
 | Skeleton and this plan | 🟨 reviewed by `plan-reviewer` (13 findings: 7 to fix first, all applied; see below), merging |
-| Ten workers | ⬜ |
-| Store core | ⬜ |
-| Integration and the two-user run | ⬜ |
+| Ten workers | 🟨 eight merged (1, 2, 3, 4, 5, 7, 8, 9); 6 and 10 building (`notes/phase-2.md`) |
+| Store core | ✅ #13, and one session through the real rules (#20) |
+| Integration and the two-user run | 🟨 one person through the whole room locally ✅; the two-user run waits for worker 6 |
 
 ## 10. The plan's review (2026-11-12, `plan-reviewer`, before any worker started)
 Verdict: fix seven things first. What it found and what changed:
