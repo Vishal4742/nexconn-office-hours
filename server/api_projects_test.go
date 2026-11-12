@@ -101,9 +101,10 @@ type fakeProjects struct {
 	byRepo       map[string]store.Project // key: lower-case owner/repo
 	maintainers  map[string]bool          // "projectID userID"
 	members      map[string]bool
-	beforeCreate func() // runs first in CreateProject: another request that wins the race
-	err          error  // every call fails with it
-	createErr    error  // CreateProject fails with it
+	joined       map[string][]string // project id → user ids, in the order they joined
+	beforeCreate func()              // runs first in CreateProject: another request that wins the race
+	err          error               // every call fails with it
+	createErr    error               // CreateProject fails with it
 }
 
 func repoKey(owner, repo string) string { return strings.ToLower(owner + "/" + repo) }
@@ -135,16 +136,46 @@ func (f *fakeProjects) CreateProject(_ context.Context, p store.Project, creator
 		return f.seenBy(existing, creatorID), false, nil
 	}
 	f.byRepo[repoKey(p.Owner, p.Repo)] = p
-	f.maintainers[p.ID+" "+creatorID], f.members[p.ID+" "+creatorID] = true, true
+	f.maintainers[p.ID+" "+creatorID] = true
+	f.join(p.ID, creatorID)
 	*f.events = append(*f.events, "insert project "+p.ID)
 	return f.seenBy(p, creatorID), true, nil
+}
+
+// join records a member once, keeping the order of arrival.
+func (f *fakeProjects) join(projectID, userID string) {
+	if !f.members[projectID+" "+userID] {
+		f.members[projectID+" "+userID] = true
+		f.joined[projectID] = append(f.joined[projectID], userID)
+	}
+}
+
+func (f *fakeProjects) AddMember(_ context.Context, projectID, userID string) error {
+	if f.err != nil {
+		return f.err
+	}
+	f.join(projectID, userID)
+	*f.events = append(*f.events, "add member "+projectID+" "+userID)
+	return nil
+}
+
+func (f *fakeProjects) Members(_ context.Context, projectID string) ([]store.Member, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	var members []store.Member
+	for _, id := range f.joined[projectID] {
+		members = append(members, store.Member{UserID: id, Name: "Name " + id, AvatarURL: "https://avatars.example/" + id})
+	}
+	return members, nil
 }
 
 func (f *fakeProjects) AddMaintainer(_ context.Context, projectID, userID string) error {
 	if f.err != nil {
 		return f.err
 	}
-	f.maintainers[projectID+" "+userID], f.members[projectID+" "+userID] = true, true
+	f.maintainers[projectID+" "+userID] = true
+	f.join(projectID, userID)
 	*f.events = append(*f.events, "add maintainer "+projectID+" "+userID)
 	return nil
 }
@@ -199,7 +230,7 @@ func newProjectsApp(t *testing.T) *projectsApp {
 	a := &projectsApp{
 		gh: gh, events: events, codec: codec,
 		rooms:    &fakeRooms{events: events, names: map[string]string{}},
-		projects: &fakeProjects{events: events, byRepo: map[string]store.Project{}, maintainers: map[string]bool{}, members: map[string]bool{}},
+		projects: &fakeProjects{events: events, byRepo: map[string]store.Project{}, maintainers: map[string]bool{}, members: map[string]bool{}, joined: map[string][]string{}},
 	}
 	a.deps = deps{guard: g, sessions: codec, github: client, rooms: a.rooms, projects: a.projects}
 	a.mux = newMux(config{AppURL: testSite}, a.deps)
@@ -243,9 +274,9 @@ func (a *projectsApp) register(owner, repo string, cookie *http.Cookie) (*http.R
 	return call(a.mux, "POST", "/api/projects", `{"owner":"`+owner+`","repo":"`+repo+`"}`, cookie)
 }
 
-// projectReply is a project as the API describes it.
+// projectReply is a project as the API describes it. GroupID is the chat room, for members only.
 type projectReply struct {
-	ID           string `json:"id"`
+	GroupID      string `json:"groupId"`
 	Owner        string `json:"owner"`
 	Repo         string `json:"repo"`
 	Description  string `json:"description"`
@@ -292,13 +323,17 @@ func TestRegisterProject(t *testing.T) {
 		if p.Owner != "PaperPlane" || p.Repo != "Stash" || p.Description != "A tiny HTTP cache." || !p.IsMember || !p.IsMaintainer {
 			t.Fatalf("project = %+v", p)
 		}
-		// Plan decision 2: the id is random, because it names the Nexconn group.
-		if !regexp.MustCompile(`^[a-z2-7]{26}$`).MatchString(p.ID) {
-			t.Fatalf("id = %q, want 26 random lower-case characters", p.ID)
+		// Plan decision 2: the project id is random, because "p" + id names the Nexconn group.
+		if !regexp.MustCompile(`^p[a-z2-7]{26}$`).MatchString(p.GroupID) {
+			t.Fatalf("groupId = %q, want p and 26 random lower-case characters", p.GroupID)
+		}
+		// The project id itself never leaves the server.
+		if strings.Contains(body, `"id"`) {
+			t.Fatalf("the reply carries an id: %s", body)
 		}
 		// Plan decision 3: a project row always means a room that exists and holds its maintainer.
-		group := "p" + p.ID
-		want := []string{"create group " + group + " owner oh_bot", "join " + group + " gh42", "insert project " + p.ID}
+		group, id := p.GroupID, strings.TrimPrefix(p.GroupID, "p")
+		want := []string{"create group " + group + " owner oh_bot", "join " + group + " gh42", "insert project " + id}
 		if !slices.Equal(*a.events, want) {
 			t.Fatalf("order = %q, want %q", *a.events, want)
 		}
@@ -321,8 +356,8 @@ func TestRegisterProject(t *testing.T) {
 		_, body = a.register("mia-k", "notes", a.as(t, "gh42"))
 		var other projectReply
 		decode(t, body, &other)
-		if other.ID == p.ID || other.Owner != "mia-k" {
-			t.Fatalf("second project = %+v, first id %s", other, p.ID)
+		if other.GroupID == p.GroupID || other.Owner != "mia-k" {
+			t.Fatalf("second project = %+v, first room %s", other, p.GroupID)
 		}
 	})
 
@@ -353,11 +388,11 @@ func TestRegisterProject(t *testing.T) {
 
 		res, body := a.register("paperplane", "stash", a.as(t, "gh7"))
 		decode(t, body, &second)
-		if res.StatusCode != http.StatusOK || second.ID != first.ID || !second.IsMaintainer || !second.IsMember {
-			t.Fatalf("status %d project %+v, want 200 and a maintainer of %s", res.StatusCode, second, first.ID)
+		if res.StatusCode != http.StatusOK || second.GroupID != first.GroupID || !second.IsMaintainer || !second.IsMember {
+			t.Fatalf("status %d project %+v, want 200 and a maintainer of %s", res.StatusCode, second, first.GroupID)
 		}
 		// The room first, then the rows: the same order as a new project.
-		want := []string{"join p" + first.ID + " gh7", "add maintainer " + first.ID + " gh7"}
+		want := []string{"join " + first.GroupID + " gh7", "add maintainer " + strings.TrimPrefix(first.GroupID, "p") + " gh7"}
 		if !slices.Equal(*a.events, want) {
 			t.Fatalf("order = %q, want %q", *a.events, want)
 		}
@@ -373,7 +408,7 @@ func TestRegisterProject(t *testing.T) {
 		res, body := a.register("paperplane", "stash", a.as(t, "gh42"))
 		var p projectReply
 		decode(t, body, &p)
-		if res.StatusCode != http.StatusOK || p.ID != winner || !p.IsMaintainer || !p.IsMember {
+		if res.StatusCode != http.StatusOK || p.GroupID != "p"+winner || !p.IsMaintainer || !p.IsMember {
 			t.Fatalf("status %d project %+v, want 200 and a maintainer of the winner's project", res.StatusCode, p)
 		}
 		// The group this request made under its own id stays behind, unused. The caller is in the
@@ -601,24 +636,25 @@ func TestProjectPage(t *testing.T) {
 		if res.StatusCode != 200 || p != want {
 			t.Fatalf("status %d project %+v, want %+v", res.StatusCode, p, want)
 		}
-		// The id names the chat room. A visitor has no use for it.
-		if strings.Contains(body, mine.ID) || strings.Contains(body, `"id"`) {
-			t.Fatalf("a signed-out reply carries the project id: %s", body)
+		// Only members are told which chat room it is.
+		if strings.Contains(body, mine.GroupID) || strings.Contains(body, `"groupId"`) || strings.Contains(body, `"id"`) {
+			t.Fatalf("a signed-out reply names the chat room: %s", body)
 		}
 	})
 
-	t.Run("a signed-in caller also gets the id and their own role", func(t *testing.T) {
-		for _, tt := range []struct {
-			user                   string
-			isMember, isMaintainer bool
-		}{{"gh42", true, true}, {"gh7", false, false}} {
-			_, body := call(a.mux, "GET", "/api/p/PaperPlane/STASH", "", a.as(t, tt.user))
-			var p projectReply
-			decode(t, body, &p)
-			want := projectReply{ID: mine.ID, Owner: "PaperPlane", Repo: "Stash", Description: "A tiny HTTP cache.", IsMember: tt.isMember, IsMaintainer: tt.isMaintainer}
-			if p != want {
-				t.Errorf("%s: %+v, want %+v", tt.user, p, want)
-			}
+	t.Run("a member also learns the chat room and their role; someone who has not joined does not", func(t *testing.T) {
+		_, body := call(a.mux, "GET", "/api/p/PaperPlane/STASH", "", a.as(t, "gh42"))
+		var p projectReply
+		decode(t, body, &p)
+		if want := (projectReply{GroupID: mine.GroupID, Owner: "PaperPlane", Repo: "Stash", Description: "A tiny HTTP cache.", IsMember: true, IsMaintainer: true}); p != want {
+			t.Errorf("the maintainer: %+v, want %+v", p, want)
+		}
+
+		_, body = call(a.mux, "GET", "/api/p/PaperPlane/STASH", "", a.as(t, "gh7"))
+		var stranger projectReply
+		decode(t, body, &stranger)
+		if want := (projectReply{Owner: "PaperPlane", Repo: "Stash", Description: "A tiny HTTP cache."}); stranger != want || strings.Contains(body, mine.GroupID) {
+			t.Errorf("signed in, not joined: %s, want no room and no role", body)
 		}
 	})
 
@@ -683,8 +719,8 @@ func TestMyProjects(t *testing.T) {
 			t.Fatalf("mia's list = %+v, want mia-k/notes then PaperPlane/Stash", list)
 		}
 		for _, p := range list {
-			if p.ID == "" || !p.IsMaintainer || !p.IsMember {
-				t.Errorf("project %+v: want an id and both roles", p)
+			if p.GroupID == "" || !p.IsMaintainer || !p.IsMember {
+				t.Errorf("project %+v: want its room and both roles", p)
 			}
 		}
 	})
@@ -698,6 +734,154 @@ func TestMyProjects(t *testing.T) {
 		broken := newProjectsApp(t)
 		broken.projects.err = errors.New("connection refused to 10.0.0.5:5432")
 		res, body = call(broken.mux, "GET", "/api/me/projects", "", broken.as(t, "gh42"))
+		refused(t, "database down", res, body, 500, "Try again")
+	})
+}
+
+func TestJoinRoom(t *testing.T) {
+	t.Run("FR-PROJ-4: joining puts the caller into the group, then into the members table", func(t *testing.T) {
+		a := newProjectsApp(t)
+		var room projectReply
+		_, body := a.register("paperplane", "stash", a.as(t, "gh42"))
+		decode(t, body, &room)
+		*a.events = nil
+
+		res, body := call(a.mux, "POST", "/api/p/PaperPlane/STASH/join", `{}`, a.as(t, "gh7"))
+		var joined projectReply
+		decode(t, body, &joined)
+		// The reply is the project as a member sees it: the page can open the chat with it.
+		if want := (projectReply{GroupID: room.GroupID, Owner: "PaperPlane", Repo: "Stash", Description: "A tiny HTTP cache.", IsMember: true}); res.StatusCode != 200 || joined != want {
+			t.Fatalf("status %d, joined %+v, want %+v", res.StatusCode, joined, want)
+		}
+		// Plan decision 3: a members row always means the person is in the group.
+		want := []string{"join " + room.GroupID + " gh7", "add member " + strings.TrimPrefix(room.GroupID, "p") + " gh7"}
+		if !slices.Equal(*a.events, want) {
+			t.Fatalf("order = %q, want %q", *a.events, want)
+		}
+
+		// Joining again changes nothing and asks Nexconn nothing.
+		*a.events = nil
+		res, body = call(a.mux, "POST", "/api/p/paperplane/stash/join", `{}`, a.as(t, "gh7"))
+		decode(t, body, &joined)
+		if res.StatusCode != 200 || !joined.IsMember || len(*a.events) != 0 {
+			t.Fatalf("second join: status %d, %+v, events %q; want 200, a member, nothing done", res.StatusCode, joined, *a.events)
+		}
+	})
+
+	t.Run("refusals", func(t *testing.T) {
+		for _, tt := range []struct {
+			name     string
+			path     string
+			signedIn bool
+			mutate   func(*http.Request)
+			want     int
+		}{
+			{"NFR-SEC-2: signed out", "/api/p/paperplane/stash/join", false, func(*http.Request) {}, 401},
+			{"NFR-SEC-5: another site's origin", "/api/p/paperplane/stash/join", true, func(r *http.Request) { r.Header.Set("Origin", "https://evil.example") }, 403},
+			{"NFR-SEC-5: a form post", "/api/p/paperplane/stash/join", true, func(r *http.Request) { r.Header.Set("Content-Type", "text/plain") }, 415},
+			{"a repo nobody registered", "/api/p/paperplane/other/join", true, func(*http.Request) {}, 404},
+			{"NFR-SEC-3: a name that is no repo", "/api/p/paper_plane/stash/join", true, func(*http.Request) {}, 404},
+		} {
+			a := newProjectsApp(t)
+			a.register("paperplane", "stash", a.as(t, "gh42"))
+			*a.events = nil
+			var cookie *http.Cookie
+			if tt.signedIn {
+				cookie = a.as(t, "gh7")
+			}
+			res, body := call(a.mux, "POST", tt.path, `{}`, cookie, tt.mutate)
+			if res.StatusCode != tt.want || !strings.Contains(body, `"ok":false`) || len(*a.events) != 0 {
+				t.Errorf("%s: status %d (want %d), events %q: %s", tt.name, res.StatusCode, tt.want, *a.events, body)
+			}
+		}
+	})
+
+	t.Run("plan decision 3: when the chat service fails, nobody is recorded as a member", func(t *testing.T) {
+		a := newProjectsApp(t)
+		a.register("paperplane", "stash", a.as(t, "gh42"))
+		a.rooms.joinErr = errors.New("nexconn join group: http 500, code 1050: internal")
+		res, body := call(a.mux, "POST", "/api/p/paperplane/stash/join", `{}`, a.as(t, "gh7"))
+		refused(t, "Nexconn down", res, body, 502, "chat room")
+		if strings.Contains(body, "nexconn") || strings.Contains(body, "1050") {
+			t.Errorf("NFR-OPS-2: Nexconn's error text reached the user: %s", body)
+		}
+		if p := a.projects.seenBy(a.projects.byRepo["paperplane/stash"], "gh7"); p.IsMember {
+			t.Errorf("gh7 is a member without being in the group")
+		}
+	})
+
+	t.Run("a session whose user row is gone signs in again; no database or no Nexconn is a 503", func(t *testing.T) {
+		a := newProjectsApp(t)
+		a.register("paperplane", "stash", a.as(t, "gh42"))
+		a.projects.err = store.ErrUnknownUser
+		res, body := call(a.mux, "POST", "/api/p/paperplane/stash/join", `{}`, a.as(t, "gh7"))
+		refused(t, "unknown user", res, body, 401, "Sign in again")
+
+		for name, strip := range map[string]func(*deps){
+			"no database": func(d *deps) { d.projects = nil },
+			"no Nexconn":  func(d *deps) { d.rooms = nil },
+		} {
+			d := a.deps
+			strip(&d)
+			res, body := call(newMux(config{AppURL: testSite}, d), "POST", "/api/p/paperplane/stash/join", `{}`, a.as(t, "gh7"))
+			refused(t, name, res, body, 503, "set up")
+		}
+	})
+}
+
+func TestRoomMembers(t *testing.T) {
+	a := newProjectsApp(t)
+	mia, diego := a.as(t, "gh42"), a.as(t, "gh7")
+	a.register("paperplane", "stash", mia)
+
+	t.Run("NFR-SEC-2: only members may see who is in the room", func(t *testing.T) {
+		res, body := call(a.mux, "GET", "/api/p/paperplane/stash/members", "", nil)
+		refused(t, "signed out", res, body, 401, "Sign in")
+		res, body = call(a.mux, "GET", "/api/p/paperplane/stash/members", "", diego)
+		refused(t, "not joined", res, body, 403, "Join this room first")
+		if strings.Contains(body, "gh42") {
+			t.Errorf("a non-member was shown a member: %s", body)
+		}
+	})
+
+	t.Run("FR-PROJ-4: a member gets the names and avatars the chat needs, and nothing else", func(t *testing.T) {
+		call(a.mux, "POST", "/api/p/paperplane/stash/join", `{}`, diego)
+		res, body := call(a.mux, "GET", "/api/p/PaperPlane/Stash/members", "", diego)
+		var members []map[string]any
+		decode(t, body, &members)
+		want := []map[string]any{
+			{"userId": "gh42", "name": "Name gh42", "avatarUrl": "https://avatars.example/gh42"},
+			{"userId": "gh7", "name": "Name gh7", "avatarUrl": "https://avatars.example/gh7"},
+		}
+		if res.StatusCode != 200 || len(members) != len(want) {
+			t.Fatalf("status %d members %v, want %v", res.StatusCode, members, want)
+		}
+		for i := range want {
+			if len(members[i]) != len(want[i]) {
+				t.Errorf("member %d has fields %v, want exactly %v", i, members[i], want[i])
+			}
+			for k, v := range want[i] {
+				if members[i][k] != v {
+					t.Errorf("member %d: %s = %v, want %v", i, k, members[i][k], v)
+				}
+			}
+		}
+	})
+
+	t.Run("a repo nobody registered, no database, a failing database", func(t *testing.T) {
+		res, body := call(a.mux, "GET", "/api/p/paperplane/other/members", "", mia)
+		refused(t, "not registered", res, body, 404, "paperplane/other")
+		res, body = call(a.mux, "GET", "/api/p/paper_plane/stash/members", "", mia)
+		refused(t, "no repo name", res, body, 404, "no such project")
+
+		d := a.deps
+		d.projects = nil
+		res, body = call(newMux(config{AppURL: testSite}, d), "GET", "/api/p/paperplane/stash/members", "", mia)
+		refused(t, "no database", res, body, 503, "set up")
+
+		broken := newProjectsApp(t)
+		broken.projects.err = errors.New("connection refused to 10.0.0.5:5432")
+		res, body = call(broken.mux, "GET", "/api/p/paperplane/stash/members", "", broken.as(t, "gh42"))
 		refused(t, "database down", res, body, 500, "Try again")
 	})
 }

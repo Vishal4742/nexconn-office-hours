@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { connectWithFreshToken, type ConnectOutcome } from "./connect";
+import {
+  CHANNEL_LIST_NOT_READY,
+  connectWithFreshToken,
+  openWhenReady,
+  type ConnectOutcome,
+} from "./connect";
 
 const OK: ConnectOutcome = { ok: true };
 const TOKEN_INCORRECT: ConnectOutcome = { ok: false, code: 31004 };
@@ -57,5 +62,45 @@ describe("FR-AUTH-3: connect, and on an invalid token fetch a new one once", () 
     };
     await expect(connectWithFreshToken(deps)).rejects.toThrow("Sign in first.");
     expect(deps.connect).not.toHaveBeenCalled();
+  });
+});
+
+describe("opening a room right after connecting", () => {
+  const READY = { isOk: true, code: 0 };
+  const NOT_YET = { isOk: false, code: CHANNEL_LIST_NOT_READY };
+  const REFUSED = { isOk: false, code: 22406 };
+
+  function setupOpen(outcomes: readonly { isOk: boolean; code: number }[]) {
+    let call = 0;
+    const open = vi.fn(async () => outcomes[call++] ?? NOT_YET);
+    const pause = vi.fn(async () => {});
+    return { open, pause };
+  }
+
+  it("opens at once when Chat UI is ready", async () => {
+    const { open, pause } = setupOpen([READY]);
+    await expect(openWhenReady(open, pause)).resolves.toEqual(READY);
+    expect(open).toHaveBeenCalledTimes(1);
+    expect(pause).not.toHaveBeenCalled();
+  });
+
+  it("waits and tries again while the channel list is not ready", async () => {
+    const { open, pause } = setupOpen([NOT_YET, NOT_YET, READY]);
+    await expect(openWhenReady(open, pause)).resolves.toEqual(READY);
+    expect(open).toHaveBeenCalledTimes(3);
+    expect(pause).toHaveBeenCalledTimes(2);
+  });
+
+  it("gives up after its attempts and says what Chat UI last answered", async () => {
+    const { open, pause } = setupOpen([]);
+    await expect(openWhenReady(open, pause, 4)).resolves.toEqual(NOT_YET);
+    expect(open).toHaveBeenCalledTimes(4);
+  });
+
+  it("does not retry a real refusal", async () => {
+    const { open, pause } = setupOpen([REFUSED, READY]);
+    await expect(openWhenReady(open, pause)).resolves.toEqual(REFUSED);
+    expect(open).toHaveBeenCalledTimes(1);
+    expect(pause).not.toHaveBeenCalled();
   });
 });
