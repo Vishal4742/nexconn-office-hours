@@ -18,6 +18,13 @@
       rel="stylesheet"
     />
     <title>Office Hours</title>
+    <!-- The landing has a dark mode of its own (styles/landing.css). Its class is set here, before
+         the first paint, so a dark system never sees the light page first; the landing removes it
+         when another page is shown. -->
+    <script>
+      if (location.pathname === "/")
+        document.documentElement.classList.add("land-page");
+    </script>
   </head>
   <body>
     <div id="root"></div>

@@ -87,7 +87,7 @@ export function NowCard({ project, hand, isMaintainer, onDone }: Props) {
               <button
                 type="button"
                 className="btn q-on-blue-ghost sm"
-                title="No reply: they move back two places"
+                title="No reply: they move back in line"
                 disabled={action.isBusy}
                 onClick={away}
               >
