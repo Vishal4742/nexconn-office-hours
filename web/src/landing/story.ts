@@ -61,7 +61,45 @@ export type StoryStep = {
   readonly moment: Moment;
 };
 
-export const STORY: readonly StoryStep[] = [];
+// Each sentence says only what the product does in this build (docs/SRS.md): FR-SESS-3, FR-HAND-1
+// and 3, FR-QUEUE-5 and 9, FR-FAQ-1 to 3 with FR-HAND-8, FR-SESS-6 and 7.
+export const STORY: readonly StoryStep[] = [
+  {
+    time: "17:00",
+    photo: "afternoon",
+    heading: "Doors open",
+    text: "You start the session. Everyone who joined the room gets an @all card and an unread badge.",
+    moment: "started",
+  },
+  {
+    time: "17:04",
+    photo: "afternoon",
+    heading: "A hand goes up",
+    text: "Contributors ask in one sentence. Answers to similar questions show up first, so repeats often answer themselves.",
+    moment: "hand",
+  },
+  {
+    time: "17:12",
+    photo: "golden",
+    heading: "It's your turn",
+    text: "A banner tells you the moment your question is taken. Press I'm here and the maintainer knows you're listening.",
+    moment: "turn",
+  },
+  {
+    time: "17:31",
+    photo: "dusk",
+    heading: "Answered once",
+    text: "Done turns two lines of answer into a public page with its own link. Everyone who asked the same thing gets it.",
+    moment: "answered",
+  },
+  {
+    time: "17:45",
+    photo: "night",
+    heading: "Last call",
+    text: "Hands close. Whoever is still waiting moves to the front of Thursday's line, so nobody has to ask twice.",
+    moment: "ended",
+  },
+];
 
 /** One observer entry: a step started or stopped crossing the middle of the window. */
 export type Crossing = { readonly index: number; readonly isCrossing: boolean };
@@ -71,15 +109,26 @@ export function withEntries(
   crossing: ReadonlySet<number>,
   entries: readonly Crossing[],
 ): ReadonlySet<number> {
-  throw new Error(
-    `withEntries(${crossing.size}, ${entries.length}) is not built yet`,
-  );
+  const next = new Set(crossing);
+  for (const entry of entries) {
+    if (entry.isCrossing) next.add(entry.index);
+    else next.delete(entry.index);
+  }
+  return next;
 }
 
-/** The current step, given the steps that cross the middle of the window. */
+/**
+ * The current step, given the steps that cross the middle of the window. It stays while it still
+ * crosses, so a reader resting on a boundary sees no flicker; otherwise the crossing step nearest
+ * to it wins, which after a jump is the one the reader passed last.
+ */
 export function nextStep(
   current: number,
   crossing: ReadonlySet<number>,
 ): number {
-  throw new Error(`nextStep(${current}, ${crossing.size}) is not built yet`);
+  if (crossing.size === 0 || crossing.has(current)) return current;
+  const [nearest] = [...crossing].sort(
+    (a, b) => Math.abs(a - current) - Math.abs(b - current) || a - b,
+  );
+  return nearest ?? current;
 }
