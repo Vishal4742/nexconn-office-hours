@@ -373,7 +373,9 @@ func TestSessionStartAsksGitHubAgain(t *testing.T) {
 				defer close(a.gh.hang)
 			}
 			res, body := call(a.mux, "POST", sessionStartPath, sessionStartBody, a.as(t, hostID))
-			if len(a.gh.asked) != 1 {
+			// A GitHub that hangs never replies, so its record of the call is not safe to read
+			// here; its "didn't answer" below shows that it was asked.
+			if !tt.hang && len(a.gh.asked) != 1 {
 				t.Fatalf("GitHub was asked %d times, want once: %q", len(a.gh.asked), a.gh.asked)
 			}
 
