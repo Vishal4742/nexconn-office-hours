@@ -200,11 +200,48 @@ func TestLoginOnAnotherHostGoesToAppURLFirst(t *testing.T) {
 	a := newAuthApp(t)
 	// Every Vercel deployment also answers on its own URL; a state cookie set there would be lost.
 	res := a.do("GET", "/auth/github/login?next=%2Fp%2Fpaperplane%2Fstash", nil, func(r *http.Request) { r.Host = "office-hours-abc123.vercel.app" })
-	if res.StatusCode != http.StatusFound || res.Header.Get("Location") != testSite+"/auth/github/login?next=%2Fp%2Fpaperplane%2Fstash" {
-		t.Fatalf("status %d, Location %q, want a redirect to APP_URL", res.StatusCode, res.Header.Get("Location"))
+	loc, err := url.Parse(res.Header.Get("Location"))
+	if err != nil || res.StatusCode != http.StatusFound || loc.Scheme+"://"+loc.Host != testSite ||
+		loc.Path != "/auth/github/login" || loc.Query().Get("next") != "/p/paperplane/stash" {
+		t.Fatalf("status %d, Location %q, want a redirect to APP_URL that keeps next", res.StatusCode, res.Header.Get("Location"))
 	}
 	if cookieNamed(res, oauthCookie) != nil {
 		t.Fatal("a state cookie was set on the wrong host")
+	}
+}
+
+func TestLoginBehindAProxyDoesNotLoop(t *testing.T) {
+	a := newAuthApp(t)
+	toGitHub := func(res *http.Response) bool {
+		return res.StatusCode == http.StatusFound && strings.HasPrefix(res.Header.Get("Location"), a.gh.URL+"/login/oauth/authorize?")
+	}
+
+	// A proxy in front (Vercel's router, the Vite dev server) may hand us its own Host and put
+	// the browser's in X-Forwarded-Host. That is our site, so the sign-in starts.
+	res := a.do("GET", "/auth/github/login", nil, func(r *http.Request) {
+		r.Host = "localhost:8080"
+		r.Header.Set("X-Forwarded-Host", testHost)
+	})
+	if !toGitHub(res) {
+		t.Fatalf("with X-Forwarded-Host = our host: status %d, Location %q, want GitHub", res.StatusCode, res.Header.Get("Location"))
+	}
+
+	// If the browser's host can't be seen at all, the first request is sent to APP_URL once...
+	res = a.do("GET", "/auth/github/login?next=%2Fp%2Fpaperplane%2Fstash", nil, func(r *http.Request) { r.Host = "internal-name:8080" })
+	loc, err := url.Parse(res.Header.Get("Location"))
+	if err != nil || res.StatusCode != http.StatusFound || loc.Scheme+"://"+loc.Host != testSite || loc.Path != "/auth/github/login" {
+		t.Fatalf("first hop: status %d, Location %q", res.StatusCode, res.Header.Get("Location"))
+	}
+	// ...and the request that comes back from that redirect is served, whatever Host it shows.
+	// Without this the browser would be bounced forever.
+	res = a.do("GET", loc.RequestURI(), nil, func(r *http.Request) { r.Host = "internal-name:8080" })
+	if !toGitHub(res) {
+		t.Fatalf("second hop: status %d, Location %q, want GitHub (a redirect loop otherwise)", res.StatusCode, res.Header.Get("Location"))
+	}
+	// The page to land on survives the hop.
+	var st oauthState
+	if err := a.codec.Open(oauthCookie, cookieNamed(res, oauthCookie).Value, &st); err != nil || st.Next != "/p/paperplane/stash" {
+		t.Fatalf("after the hop: state %+v, err %v, want next=/p/paperplane/stash", st, err)
 	}
 }
 
