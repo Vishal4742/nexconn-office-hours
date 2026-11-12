@@ -38,3 +38,5 @@ Append one line after every correction ("Update your CLAUDE.md so you don't make
 - Tell the owner what is happening in plain, full sentences. Compressed status lines got "what ?" twice. (2026-11-12)
 - A test-only endpoint must refuse to open unless `APP_URL` is local, and say so in a test. (security review, 2026-11-12)
 - Ids that name a Nexconn group must be random: "already exists" is treated as ours. (review, 2026-11-12)
+- A file's deletion is committed with the code that replaces it. `git add` fails on a path already removed with `git rm`, and a pushed commit is never rewritten: fix forward with a new commit. (own mistake, 2026-11-12)
+- Anything that grants a role is tied to an id that can't change hands (GitHub's repo id, never just a name). (own review, 2026-11-12)
