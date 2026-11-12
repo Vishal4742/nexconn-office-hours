@@ -3,7 +3,7 @@ import { Check, GitHubMark } from "../../components/Icons";
 import { issueUrl } from "../../issueLink";
 import type { Project } from "../../projects";
 import { markAway, skipHand } from "../../queue/api";
-import { acceptQueue } from "../../queue/store";
+import { actOnQueue } from "../../queue/store";
 import type { Hand } from "../../queue/types";
 import { Details } from "./Details";
 import { Said } from "./Said";
@@ -30,10 +30,8 @@ function issueBody(hand: Hand): string {
  */
 export function NowCard({ project, hand, isMaintainer, onDone }: Props) {
   const action = useAction();
-  const skip = () =>
-    void action.run(async () => acceptQueue(await skipHand(hand.id)));
-  const away = () =>
-    void action.run(async () => acceptQueue(await markAway(hand.id)));
+  const skip = () => void action.run(() => actOnQueue(() => skipHand(hand.id)));
+  const away = () => void action.run(() => actOnQueue(() => markAway(hand.id)));
 
   return (
     <section className="q-now" aria-label="Now answering">

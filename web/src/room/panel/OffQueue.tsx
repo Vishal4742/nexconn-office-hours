@@ -6,7 +6,7 @@ import type { Project } from "../../projects";
 import { setNextSession } from "../../queue/api";
 import { summarize } from "../../queue/place";
 import type { Summary } from "../../queue/place";
-import { acceptQueue } from "../../queue/store";
+import { actOnQueue } from "../../queue/store";
 import { fromLocalInput, toLocalInput, whenLabel } from "../../queue/times";
 import type { Queue } from "../../queue/types";
 import { DoneList } from "./DoneList";
@@ -120,14 +120,12 @@ function NextSessionForm({ project, at }: FormProps) {
     const when = fromLocalInput(value);
     void action.run(async () => {
       if (!when) throw new Error("Pick a day and a time first.");
-      acceptQueue(await setNextSession(project, when));
+      await actOnQueue(() => setNextSession(project, when));
     });
   }
 
   const clear = () =>
-    void action.run(async () =>
-      acceptQueue(await setNextSession(project, null)),
-    );
+    void action.run(() => actOnQueue(() => setNextSession(project, null)));
 
   return (
     <form className="q-next" onSubmit={handleSave} noValidate>

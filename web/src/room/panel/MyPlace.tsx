@@ -1,6 +1,6 @@
 import { withdrawHand } from "../../queue/api";
 import { placeLabel } from "../../queue/place";
-import { acceptQueue } from "../../queue/store";
+import { actOnQueue } from "../../queue/store";
 import type { Hand } from "../../queue/types";
 import { AskOnce } from "./AskOnce";
 import { StarIcon } from "./icons";
@@ -22,7 +22,7 @@ type Props = {
 export function MyPlace({ hand, ahead }: Props) {
   const action = useAction();
   const withdraw = () =>
-    void action.run(async () => acceptQueue(await withdrawHand(hand.id)));
+    void action.run(() => actOnQueue(() => withdrawHand(hand.id)));
 
   return (
     <section className="q-mine" aria-label="Your place">

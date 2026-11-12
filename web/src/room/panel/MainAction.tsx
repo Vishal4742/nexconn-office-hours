@@ -1,6 +1,6 @@
 import { nextHand } from "../../queue/api";
 import { answeringHand, myOpenHand, waitingHands } from "../../queue/place";
-import { acceptQueue } from "../../queue/store";
+import { actOnQueue } from "../../queue/store";
 import type { Queue, QueueSession } from "../../queue/types";
 import { HandIcon, NextIcon } from "./icons";
 import { Said } from "./Said";
@@ -106,7 +106,7 @@ function NextQuestion({
       ? "Nobody is waiting."
       : "";
   const next = () =>
-    void action.run(async () => acceptQueue(await nextHand(session.id)));
+    void action.run(() => actOnQueue(() => nextHand(session.id)));
 
   return (
     <div className="qcard q-foot">

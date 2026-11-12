@@ -10,8 +10,8 @@ import {
   skipHand,
   togglePlus,
 } from "../../queue/api";
-import { acceptQueue } from "../../queue/store";
-import type { Hand } from "../../queue/types";
+import { actOnQueue } from "../../queue/store";
+import type { Hand, Queue } from "../../queue/types";
 import { AskOnce } from "./AskOnce";
 import { DotsIcon } from "./icons";
 import { Said } from "./Said";
@@ -174,7 +174,7 @@ function PlusButton({
   readonly action: Action;
 }) {
   const toggle = () =>
-    void action.run(async () => acceptQueue(await togglePlus(hand.id)));
+    void action.run(() => actOnQueue(() => togglePlus(hand.id)));
   return (
     <button
       type="button"
@@ -203,8 +203,8 @@ function RowActions({
   readonly action: Action;
 }) {
   const login = `@${hand.author.login}`;
-  const queueCall = (call: (id: string) => ReturnType<typeof skipHand>) =>
-    void action.run(async () => acceptQueue(await call(hand.id)));
+  const queueCall = (call: (id: string) => Promise<Queue>) =>
+    void action.run(() => actOnQueue(() => call(hand.id)));
   const mute = () =>
     void action.run(
       () => muteMember(project, hand.author.userId, MUTE_MINUTES),
