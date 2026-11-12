@@ -528,6 +528,10 @@ func TestNewDepsRefusesToStartWithoutItsTwoSecrets(t *testing.T) {
 	if d.guard == nil || d.sessions == nil || d.github != nil || d.users != nil || d.db != nil {
 		t.Fatalf("deps without optional settings = %+v", d)
 	}
+	// Without a database a role check has nothing to ask, and says so.
+	if err := d.guard.Maintainer(context.Background(), session.User{ID: "gh1"}, "p1"); err == nil || !strings.Contains(err.Error(), "no role store") {
+		t.Fatalf("role check without a database: %v, want the \"no role store\" error", err)
+	}
 	// These are interfaces: a nil pointer put into one would not compare equal to nil, and the
 	// "not set up" answers of the routes would silently stop working.
 	if d.projects != nil || d.rooms != nil || d.tokens != nil {
@@ -543,6 +547,11 @@ func TestNewDepsRefusesToStartWithoutItsTwoSecrets(t *testing.T) {
 	}
 	if d.github == nil || d.users == nil || d.db == nil || d.projects == nil {
 		t.Fatalf("deps with everything = %+v", d)
+	}
+	// NFR-SEC-2: with a database the guard asks it. Here nothing listens on that address, so the
+	// check fails on the connection, which proves the question was put to the store.
+	if err := d.guard.Maintainer(context.Background(), session.User{ID: "gh1"}, "p1"); err == nil || strings.Contains(err.Error(), "no role store") {
+		t.Fatalf("role check with a database: %v, want an error from the store", err)
 	}
 	t.Setenv("NEXT_PUBLIC_NEXCONN_APP_KEY", "pk_test")
 	t.Setenv("NEXCONN_APP_SECRET", "secret_test")

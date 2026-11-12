@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { ApiError, api } from "./api";
+import { ApiError, api, refusalOf } from "./api";
 
 function reply(status: number, body: string, type = "application/json") {
   return new Response(body, { status, headers: { "Content-Type": type } });
@@ -75,5 +75,21 @@ describe("api", () => {
     expect((failure as ApiError).message).toBe(
       "Can't reach the server. Check your connection and try again.",
     );
+  });
+});
+
+describe("refusalOf", () => {
+  it("keeps the server's sentence, and knows when signing in again is the cure", () => {
+    expect(refusalOf(new ApiError(403, "Join this room first."))).toEqual({
+      message: "Join this room first.",
+      needsSignIn: false,
+    });
+    // Our own session ran out, or GitHub stopped accepting the token inside it.
+    expect(refusalOf(new ApiError(401, "Sign in first."))).toEqual({
+      message: "Sign in first.",
+      needsSignIn: true,
+    });
+    expect(refusalOf("not an error").needsSignIn).toBe(false);
+    expect(refusalOf("not an error").message.length).toBeGreaterThan(0);
   });
 });
