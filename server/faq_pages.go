@@ -136,7 +136,8 @@ func faqPageFailed(w http.ResponseWriter, r *http.Request, err error) {
 }
 
 // faqPageWrite renders a page whole before it answers, so a template that fails is a 500 and
-// never half a page. A cache may keep a page for a minute, but never a failure.
+// never half a page. A cache must ask again before it shows a page (no-cache), so an answer a
+// maintainer deleted is gone at once; a failure is never kept at all.
 func faqPageWrite(w http.ResponseWriter, status int, page interface{ Render(io.Writer) error }) {
 	var body bytes.Buffer
 	if err := page.Render(&body); err != nil {
@@ -145,7 +146,7 @@ func faqPageWrite(w http.ResponseWriter, status int, page interface{ Render(io.W
 		http.Error(w, "Something went wrong on our side. Try again in a moment.", http.StatusInternalServerError)
 		return
 	}
-	cache := "public, max-age=60"
+	cache := "public, no-cache"
 	if status >= http.StatusInternalServerError {
 		cache = "no-store"
 	}

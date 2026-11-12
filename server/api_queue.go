@@ -35,11 +35,6 @@ const (
 	notBuiltYet   = "This part of Office Hours isn't built yet."
 )
 
-// notBuilt is what a route answers until its part of Phase 2 is built.
-func notBuilt(w http.ResponseWriter) {
-	writeJSON(w, http.StatusNotImplemented, envelope{Error: notBuiltYet})
-}
-
 // now is the moment an action happens. Postgres keeps microseconds, so the rules never see more:
 // a time that is written and read back is the same time.
 func now() time.Time { return time.Now().UTC().Truncate(time.Microsecond) }
@@ -196,7 +191,9 @@ func queueRefusal(err error) error {
 		return refuse(http.StatusConflict, "That can't be done with this hand any more.") // FR-QUEUE-2
 	case errors.Is(err, store.ErrSessionLive):
 		return refuse(http.StatusConflict, "A session is already live in this room.") // FR-SESS-2
-	case errors.Is(err, queue.ErrNotImplemented), errors.Is(err, store.ErrNotBuilt):
+	case errors.Is(err, store.ErrNoSession):
+		return refuse(http.StatusNotFound, "There is no such session.")
+	case errors.Is(err, queue.ErrNotImplemented):
 		return refuse(http.StatusNotImplemented, notBuiltYet)
 	}
 	return err

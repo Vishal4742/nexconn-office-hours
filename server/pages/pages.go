@@ -10,7 +10,6 @@ import (
 	"io"
 	"net/url"
 	"time"
-	"unicode/utf8"
 
 	"officehours/store"
 )
@@ -84,8 +83,9 @@ func (e Entry) Render(w io.Writer) error { return entryPage.ExecuteTemplate(w, "
 // URL is the answer's own address.
 func (e Entry) URL() string { return e.Origin + e.EntryPath(e.Slug) }
 
-// issueBodyMax is the longest body an issue link carries, as in web/src/issueLink.ts: GitHub
-// turns away an address that is too long.
+// issueBodyMax is the longest body an issue link carries, counted as it is written in the
+// address, as in web/src/issueLink.ts: GitHub turns away an address that is too long, and a
+// letter outside ASCII takes up to 12 characters there.
 const issueBodyMax = 4000
 
 // IssueURL is GitHub's form for a new issue in the project's repository, filled in with the
@@ -102,12 +102,20 @@ func (e Entry) issueBody() string {
 	if e.Question == "" {
 		return link
 	}
-	room := issueBodyMax - utf8.RuneCountInString(link) - len("\n\n")
-	details := []rune(e.Question)
-	if len(details) > room {
-		details = append(details[:room-1], '…')
+	details, cut := []rune(e.Question), false
+	body := func() string {
+		if cut {
+			return string(details) + "…\n\n" + link
+		}
+		return string(details) + "\n\n" + link
 	}
-	return string(details) + "\n\n" + link
+	for len(details) > 0 && len(url.QueryEscape(body())) > issueBodyMax {
+		details, cut = details[:len(details)*9/10], true // a tenth at a time: a few rounds at most
+	}
+	if len(details) == 0 {
+		return link
+	}
+	return body()
 }
 
 // Notice is a page that says why there is no page: an unknown or removed answer, a server that
