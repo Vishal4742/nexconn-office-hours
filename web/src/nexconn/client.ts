@@ -106,9 +106,10 @@ function startOnce(config: {
   try {
     app = start(config);
     return app;
-  } catch {
+  } catch (cause) {
     startFailure = new Error(
       "The chat could not start. Reload the page to try again.",
+      { cause },
     );
     throw startFailure;
   }
