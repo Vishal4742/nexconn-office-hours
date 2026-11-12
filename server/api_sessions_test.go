@@ -88,6 +88,25 @@ func (sessionFakeBlindQueue) Queue(context.Context, string) (store.Snapshot, err
 	return store.Snapshot{}, errors.New("connection reset")
 }
 
+// sessionFakeLeavingQueue is the queue store while the caller goes away the moment their action
+// is written: from then on, whatever still uses the request's context fails.
+type sessionFakeLeavingQueue struct {
+	*fakeQueue
+	leave context.CancelFunc
+}
+
+func (f sessionFakeLeavingQueue) Apply(ctx context.Context, sessionID int64, a queue.Action) (store.Applied, error) {
+	defer f.leave()
+	return f.fakeQueue.Apply(ctx, sessionID, a)
+}
+
+func (f sessionFakeLeavingQueue) Queue(ctx context.Context, projectID string) (store.Snapshot, error) {
+	if err := ctx.Err(); err != nil {
+		return store.Snapshot{}, err
+	}
+	return f.fakeQueue.Queue(ctx, projectID)
+}
+
 // sessionApp is newQueueApp with a fake session store behind the session routes.
 func sessionApp(t *testing.T) (*queueApp, *sessionFakeStarts) {
 	t.Helper()
@@ -111,15 +130,16 @@ func sessionUntouched(t *testing.T, name string, a *queueApp, starts *sessionFak
 }
 
 // sessionAction returns the one action the queue store was asked to apply, and fails the test if
-// it is not by the host, of the wanted kind and at a time in whole microseconds.
+// it is not by the host, of the wanted kind and at a time from now(): UTC, in whole microseconds.
+// (Some clocks tick in microseconds anyway, so the zone is what tells now() from time.Now().)
 func sessionAction(t *testing.T, a *queueApp, kind queue.Kind) queue.Action {
 	t.Helper()
 	if len(a.queue.asked) != 1 {
 		t.Fatalf("%d actions were applied, want 1: %+v", len(a.queue.asked), a.queue.asked)
 	}
 	got := a.queue.asked[0]
-	if got.Kind != kind || got.ActorID != hostID || got.HandID != 0 || got.At.IsZero() || got.At.Nanosecond()%1000 != 0 {
-		t.Fatalf("applied %+v, want one %s by the host at a time in whole microseconds", got, kind)
+	if got.Kind != kind || got.ActorID != hostID || got.HandID != 0 || got.At.IsZero() || got.At.Location() != time.UTC || got.At.Nanosecond()%1000 != 0 {
+		t.Fatalf("applied %+v, want one %s by the host at a time from now()", got, kind)
 	}
 	return got
 }
@@ -530,6 +550,17 @@ func TestSessionEnd(t *testing.T) {
 			res, body := call(a.mux, "POST", sessionEndPath, `{}`, a.as(t, hostID))
 			if res.StatusCode != http.StatusOK || a.chat.types() != "OH:Queue" {
 				t.Fatalf("status %d body %s, the room got %q; want 200 and the ping alone", res.StatusCode, body, a.chat.types())
+			}
+		})
+		t.Run("plan decision 6: the maintainer goes away once the end is written", func(t *testing.T) {
+			a, _ := sessionApp(t)
+			ended(a, nil, queue.Answered)
+			ctx, leave := context.WithCancel(context.Background())
+			a.deps.queue = sessionFakeLeavingQueue{a.queue, leave}
+			a.remux()
+			call(a.mux, "POST", sessionEndPath, `{}`, a.as(t, hostID), func(r *http.Request) { *r = *r.WithContext(ctx) })
+			if said := a.chat.types(); said != "OH:Queue OH:Session" {
+				t.Fatalf("the room got %q, want the ended card and the ping", said)
 			}
 		})
 		t.Run("the queue cannot be read", func(t *testing.T) {
