@@ -1,0 +1,406 @@
+/* Base, shared pieces and the pages of the web app. Values come from the approved demo
+   (../design/office-hours-demo.html, v7). */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+html,
+body,
+#root {
+  min-height: 100%;
+  margin: 0;
+}
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font: 420 14px/20px var(--sans);
+  -webkit-font-smoothing: antialiased;
+}
+button,
+input,
+textarea,
+select {
+  font: inherit;
+  color: inherit;
+  letter-spacing: inherit;
+}
+button {
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  text-align: inherit;
+}
+p,
+h1,
+h2,
+h3,
+ul,
+ol,
+figure {
+  margin: 0;
+  padding: 0;
+}
+h1,
+h2,
+h3 {
+  font-weight: 500;
+  text-wrap: balance;
+}
+p {
+  text-wrap: pretty;
+}
+a {
+  color: var(--blue);
+}
+img {
+  max-width: 100%;
+}
+:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+.serif {
+  font-family: var(--serif);
+  font-style: italic;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+.muted {
+  color: var(--muted);
+}
+.skip {
+  position: fixed;
+  left: 16px;
+  top: -64px;
+  z-index: 100;
+  background: var(--ink);
+  color: var(--paper);
+  padding: 8px 12px;
+  border-radius: 999px;
+  font-weight: 600;
+  text-decoration: none;
+}
+.skip:focus {
+  top: 16px;
+}
+
+/* ---------- buttons and links ---------- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font: 600 14px/20px var(--sans);
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  white-space: nowrap;
+  text-decoration: none;
+  transition:
+    background-color 0.15s var(--ease),
+    transform 0.1s var(--ease),
+    opacity 0.15s var(--ease);
+}
+.btn:active:not(:disabled) {
+  transform: scale(0.98);
+}
+.btn svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+.btn.primary {
+  background: var(--blue);
+  color: var(--blue-ink);
+}
+.btn.primary:hover:not(:disabled) {
+  background: var(--blue-hover);
+}
+.btn.ghost {
+  border-color: var(--hairline);
+  background: var(--surface);
+  color: var(--ink);
+}
+.btn.ghost:hover:not(:disabled) {
+  background: var(--sunken);
+}
+.btn.lg {
+  font-size: 16px;
+  line-height: 24px;
+  padding: 12px 16px;
+}
+.btn.lg svg {
+  width: 20px;
+  height: 20px;
+}
+.btn.sm {
+  padding: 4px 12px;
+}
+.btn:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+.text-btn {
+  font-weight: 600;
+  border-radius: 4px;
+  color: var(--ink);
+  text-decoration: none;
+}
+.text-btn:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* ---------- shared pieces ---------- */
+/* Side padding and page padding are set on separate axes: a page is both .wrap and .page. */
+.wrap {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding-inline: 24px;
+}
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 16px;
+  line-height: 24px;
+  border-radius: 8px;
+  color: var(--ink);
+  text-decoration: none;
+}
+.brand svg {
+  width: 24px;
+  height: 24px;
+  flex: none;
+}
+.av {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: var(--sunken);
+  border: 1px solid var(--hairline);
+  font: 500 12px/1 var(--mono);
+  color: var(--ink);
+  object-fit: cover;
+}
+.card {
+  background: var(--surface);
+  box-shadow: var(--ring);
+  border-radius: 12px;
+  padding: 16px;
+}
+.notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-top: 24px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: var(--ring);
+  font-size: 16px;
+  line-height: 24px;
+}
+
+/* ---------- header ---------- */
+.topline {
+  position: sticky;
+  top: 0;
+  z-index: 6;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 16px;
+  height: 64px;
+  padding: 0 24px;
+  background: var(--glass);
+  backdrop-filter: blur(16px) saturate(1.4);
+  -webkit-backdrop-filter: blur(16px) saturate(1.4);
+  border-bottom: 1px solid var(--hairline);
+}
+.topline .end {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 16px;
+}
+.topline .who {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+  min-width: 0;
+}
+.topline .who span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 180px;
+}
+
+/* ---------- landing ---------- */
+.hero {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+  gap: 48px;
+  align-items: center;
+  padding: 48px 0 32px;
+}
+.hero h1 {
+  font-size: clamp(48px, 5.4vw, 76px);
+  line-height: 1.02;
+  letter-spacing: -0.025em;
+}
+.hero h1 .serif {
+  color: var(--blue);
+}
+.hero .sub {
+  margin-top: 24px;
+  font-size: 18px;
+  line-height: 28px;
+  color: var(--muted);
+  max-width: 520px;
+}
+.hero .ctas {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  flex-wrap: wrap;
+  margin-top: 32px;
+}
+.proof {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-top: 24px;
+  color: var(--muted);
+}
+.proof span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.proof svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+/* "once." sits in a selection box with two handles (docs/UI.md §1). */
+.sel {
+  position: relative;
+  display: inline-block;
+  padding: 0 0.1em;
+  background: rgba(0, 71, 255, 0.1);
+  outline: 1.5px solid var(--blue);
+}
+.sel .hd {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: #fff;
+  border: 2px solid var(--blue);
+}
+.sel .hd.tl {
+  left: -6px;
+  top: -6px;
+}
+.sel .hd.br {
+  right: -6px;
+  bottom: -6px;
+}
+.hero-photo {
+  display: block;
+  width: 100%;
+  height: auto; /* the height attribute would win over aspect-ratio otherwise */
+  aspect-ratio: 700 / 640;
+  object-fit: cover;
+  object-position: 68% 50%;
+  border-radius: 24px;
+  background: #cfdbe6;
+}
+.foot {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 32px 0 48px;
+  color: var(--muted);
+}
+
+/* ---------- dashboard and simple pages ---------- */
+.page {
+  padding-block: 48px 96px;
+}
+.page h1 {
+  font-size: 36px;
+  line-height: 40px;
+  letter-spacing: -0.022em;
+}
+.page .lead {
+  margin-top: 12px;
+  font-size: 18px;
+  line-height: 28px;
+  color: var(--muted);
+  max-width: 560px;
+}
+.empty {
+  margin-top: 32px;
+  padding: 32px;
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: var(--ring);
+  font-size: 16px;
+  line-height: 24px;
+  color: var(--muted);
+}
+.actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 24px;
+}
+
+@media (max-width: 760px) {
+  .wrap {
+    padding-inline: 16px;
+  }
+  .page {
+    padding-block: 32px 64px;
+  }
+  .topline {
+    padding: 0 16px;
+  }
+  .topline .who span,
+  .topline .hide-narrow {
+    display: none;
+  }
+  .hero {
+    grid-template-columns: 1fr;
+    gap: 32px;
+    padding: 32px 0 16px;
+  }
+  .hero h1 {
+    font-size: 44px;
+  }
+  .page h1 {
+    font-size: 30px;
+    line-height: 36px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation: none !important;
+  }
+}

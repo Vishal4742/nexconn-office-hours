@@ -9,7 +9,7 @@ function reply(status: number, body: string, type = "application/json") {
 function stubFetch(result: Response | Error) {
   const fetchMock = vi.fn(async () => {
     if (result instanceof Error) throw result;
-    return result;
+    return result.clone(); // a Response body can be read once; each call gets its own
   });
   vi.stubGlobal("fetch", fetchMock);
   return fetchMock;
