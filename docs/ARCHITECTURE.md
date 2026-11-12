@@ -136,8 +136,8 @@ server/                  Go module root (go.mod, go 1.25): main.go (mux, $PORT) 
                          store/ (pgx) · guard/ (Origin/JSON/session/role) · session/ (AES-GCM cookie) · pages/ (FAQ templates) ·
                          migrations/ (001_init.sql …, go:embed) · cmd/migrate/
 tools/dev.sh             loads .env (Go doesn't) and runs `go -C server run .` on :8080
-web/                     Vite + React + TS: pages, QueuePanel, sheets, ChatRoom (Chat UI singleton), OH bubbles; Vitest for UI logic
+web/                     Vite + React + TS: pages/ (Landing, Dashboard, Room), room/ (ChatRoom, JoinGate, QueuePanel, CopyLink), nexconn/ (the one connection, roster, cards, opening a room), components/; Vitest for UI logic
 vercel.json              services: web (static) + go, and the routes above
-spike/                   P0 throwaway Go program (deleted after P0)
+server/cmd/spike         P0 command that sends test cards and pings to a test group (kept until P2 sends real ones)
 docs/  notes/  tools/
 ```

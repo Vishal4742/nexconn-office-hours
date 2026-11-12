@@ -82,6 +82,8 @@ The first version (three plain columns) and the second (a thin painted strip in 
 - **Keyboard (maintainer):** `N` Next, `D` Done, `S` Skip, `A` Away, with visible hints (NFR-A11Y-1).
 - Project description and recent answers are no longer a desktop column: the FAQ button opens the FAQ page; on phones they live in the FAQ tab.
 
+**Built in P1 (2026-11-12), with no sessions yet:** the top row (brand, repo, "Not live", copy the room's link, Dashboard, my avatar), the headline "No session *right now.*", the chat card, and the photo panel with the afternoon photo, a glass chip ("2 members" with up to three faces) and one glass card ("No session right now"). No meta line, no clock, no buttons in the panel: each arrives with the state it shows (P2). The site's header is not drawn on the room's route; the join card, "nobody hosts office hours for this repo yet" and the error state put it back. Not in the room: the landscape photo fills the page under the header, with one glass card (repo, "Join the office hours room", the description, the one action, "Office Hours sees your public GitHub profile only. No email, no repo access."). The page is a column of header, connection banner and main, so the room is always exactly as tall as what is left. Below 1040 px, until there is a queue to put in a tab, the panel is a 160 px band of sky above the chat, and the headline is kept for screen readers only (the band says the same).
+
 ### S3 on phones and tablets (below 1040 px): tabs, queue first (NFR-COMP-1)
 ```
 ┌─────────────────────────────┐
