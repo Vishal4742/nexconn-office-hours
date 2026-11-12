@@ -15,6 +15,7 @@ import (
 	"regexp"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -32,10 +33,29 @@ const (
 	pushRights     = `{"admin":false,"maintain":false,"push":true,"triage":true,"pull":true}`
 )
 
-// githubRepo is GitHub's reply for one public repository, the one GitHub numbers 1001. An empty
-// permissions leaves the key out.
+// githubID is the number the fake GitHub gives a repository: 1001 for PaperPlane/Stash, and
+// another one for every other name. A project is tied to this number, not to the name.
+func githubID(owner, name string) int {
+	full := strings.ToLower(owner + "/" + name)
+	if full == "paperplane/stash" {
+		return 1001
+	}
+	id := 5000
+	for _, b := range []byte(full) {
+		id += int(b)
+	}
+	return id
+}
+
+// withID is a reply of githubRepo for another repository id: the same repo under a new name, or
+// another repo under the same name.
+func withID(reply string, id int) string {
+	return regexp.MustCompile(`"id":\d+`).ReplaceAllString(reply, `"id":`+strconv.Itoa(id))
+}
+
+// githubRepo is GitHub's reply for one public repository. An empty permissions leaves the key out.
 func githubRepo(owner, ownerType, name, permissions string) string {
-	reply := `{"id":1001,"name":"` + name + `","private":false,"owner":{"login":"` + owner + `","type":"` + ownerType + `"},"description":"A tiny HTTP cache."`
+	reply := `{"id":` + strconv.Itoa(githubID(owner, name)) + `,"name":"` + name + `","private":false,"owner":{"login":"` + owner + `","type":"` + ownerType + `"},"description":"A tiny HTTP cache."`
 	if permissions != "" {
 		reply += `,"permissions":` + permissions
 	}
@@ -162,8 +182,8 @@ func (f *fakeProjects) CreateProject(_ context.Context, p store.Project, creator
 	if f.beforeCreate != nil {
 		f.beforeCreate()
 	}
-	if existing, ok := f.byRepo[repoKey(p.Owner, p.Repo)]; ok {
-		return f.seenBy(existing, creatorID), false, nil
+	if existing, found, _ := f.ProjectOf(context.Background(), p.GitHubID, p.Owner, p.Repo, creatorID); found {
+		return existing, false, nil
 	}
 	f.byRepo[repoKey(p.Owner, p.Repo)] = p
 	f.maintainers[p.ID+" "+creatorID] = true
@@ -479,7 +499,7 @@ func TestRegisterProject(t *testing.T) {
 		*a.events = nil
 
 		// GitHub follows the old name to the repo and answers with its new one: the same id.
-		a.gh.reply = githubRepo("PaperPlane", "Organization", "Cache", maintainRights)
+		a.gh.reply = withID(githubRepo("PaperPlane", "Organization", "Cache", maintainRights), 1001)
 		res, body := a.register("paperplane", "stash", a.as(t, "gh42"))
 		decode(t, body, &again)
 		// The project keeps the name it was registered under: no second project, no second room.
@@ -518,7 +538,7 @@ func TestRegisterProject(t *testing.T) {
 
 		// The first repo was renamed or deleted. Someone made a new one under its name, and is of
 		// course its admin: same name, another id.
-		a.gh.reply = strings.Replace(githubRepo("PaperPlane", "Organization", "Stash", adminRights), `"id":1001`, `"id":2002`, 1)
+		a.gh.reply = withID(githubRepo("PaperPlane", "Organization", "Stash", adminRights), 2002)
 		res, body := a.register("paperplane", "stash", a.as(t, "gh7"))
 		refused(t, "another repo under the name", res, body, 409, "different GitHub repository")
 		if len(*a.events) != 0 {

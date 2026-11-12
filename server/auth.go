@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"officehours/github"
 	"officehours/guard"
 	"officehours/session"
 	"officehours/store"
@@ -129,7 +130,7 @@ func (d deps) callback(w http.ResponseWriter, r *http.Request) {
 	}
 	u := session.User{
 		ID:    "gh" + strconv.FormatInt(profile.ID, 10),
-		Login: profile.Login, Name: profile.DisplayName(), AvatarURL: profile.AvatarURL,
+		Login: profile.Login, Name: displayName(profile), AvatarURL: profile.AvatarURL,
 		GitHubToken: token,
 	}
 	if err := d.users.UpsertUser(r.Context(), store.User{ID: u.ID, GitHubID: profile.ID, Login: u.Login, Name: u.Name, AvatarURL: u.AvatarURL}); err != nil {
@@ -143,6 +144,16 @@ func (d deps) callback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	http.Redirect(w, r, safeNext(st.Next), http.StatusFound)
+}
+
+// displayName is what the app calls someone: their GitHub name or login, except that nobody is
+// called like the bot. A GitHub name is free text, and in the chat a person named "Office Hours"
+// would look like the sender of the cards.
+func displayName(u github.User) string {
+	if name := u.DisplayName(); !strings.EqualFold(strings.TrimSpace(name), botName) {
+		return name
+	}
+	return u.Login
 }
 
 // logout clears the session cookie (FR-AUTH-4). It needs our Origin, so another site can't sign

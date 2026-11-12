@@ -121,13 +121,23 @@ func (g *Guard) Mutation(w http.ResponseWriter, r *http.Request, dst any) (sessi
 	return u, nil
 }
 
+// errNoRoles is what a role check answers on a server that has nothing to ask: it runs without a
+// database. It is an internal error, so the caller sees a 500 and nobody is let through.
+var errNoRoles = errors.New("guard: role lookup: no role store is configured")
+
 // Member refuses a user who has not joined the project.
 func (g *Guard) Member(ctx context.Context, u session.User, projectID string) error {
+	if g.roles == nil {
+		return errNoRoles
+	}
 	return g.role(ctx, g.roles.IsMember, u, projectID, "Join this room first.")
 }
 
 // Maintainer refuses a user who does not maintain the project.
 func (g *Guard) Maintainer(ctx context.Context, u session.User, projectID string) error {
+	if g.roles == nil {
+		return errNoRoles
+	}
 	return g.role(ctx, g.roles.IsMaintainer, u, projectID, "Only a maintainer of this project can do that.")
 }
 

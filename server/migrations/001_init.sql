@@ -13,7 +13,7 @@ CREATE TABLE users (
 
 CREATE TABLE projects (
   id              TEXT PRIMARY KEY,           -- random: the room's Nexconn group is 'p' || id, so nobody may guess it
-  github_id       BIGINT NOT NULL,            -- GitHub's id of the repository: a name can change hands, this can't
+  github_id       BIGINT NOT NULL UNIQUE,     -- GitHub's id of the repository: a name can change hands, this can't
   owner           TEXT NOT NULL,              -- GitHub's own spelling
   repo            TEXT NOT NULL,
   description     TEXT NOT NULL DEFAULT '',
@@ -21,7 +21,7 @@ CREATE TABLE projects (
   created_by      TEXT NOT NULL REFERENCES users (id),
   created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
--- FR-PROJ-2: one project per repository, whatever the letter case.
+-- FR-PROJ-2: one project per repository (github_id above), and one per name whatever the letter case.
 CREATE UNIQUE INDEX projects_one_per_repo ON projects (lower(owner), lower(repo));
 
 -- The source of truth for roles (NFR-SEC-2).

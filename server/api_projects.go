@@ -15,8 +15,12 @@ import (
 )
 
 // botID is the Nexconn user that owns every room and sends every OH:* message. No person can be
-// it: people are "gh" followed by a number.
-const botID = "oh_bot"
+// it: people are "gh" followed by a number. botName is what the chat calls it; no person may be
+// called that either (see displayName).
+const (
+	botID   = "oh_bot"
+	botName = "Office Hours"
+)
 
 const (
 	maxDescription = 350 // GitHub's own limit for a repository's description
@@ -36,6 +40,7 @@ type roomService interface {
 
 // projectStore is the part of the store the project routes need.
 type projectStore interface {
+	ProjectOf(ctx context.Context, githubID int64, owner, repo, viewerID string) (store.Project, bool, error)
 	ProjectByRepo(ctx context.Context, owner, repo, viewerID string) (store.Project, bool, error)
 	CreateProject(ctx context.Context, p store.Project, creatorID string) (store.Project, bool, error)
 	AddMaintainer(ctx context.Context, projectID, userID string) error
@@ -170,7 +175,11 @@ func repoRefusal(asked string, repo github.Repo, err error) *guard.Error {
 // created, and a maintainer row means that person is in it. A failure in between leaves a group
 // nobody uses, which costs nothing and needs no repair.
 func (d deps) projectFor(ctx context.Context, repo github.Repo, userID string) (project store.Project, created bool, err error) {
-	project, found, err := d.projects.ProjectByRepo(ctx, repo.Owner, repo.Name, userID)
+	// The repository's own project if it has one, under whatever name it was registered (a repo
+	// renamed on GitHub is still that project); otherwise the project that holds this name.
+	// ponytail: a renamed repo keeps the name it was registered under. Follow the rename, with a
+	// redirect from the old address, once FAQ links exist that must keep working.
+	project, found, err := d.projects.ProjectOf(ctx, repo.ID, repo.Owner, repo.Name, userID)
 	if err != nil {
 		return store.Project{}, false, err
 	}
@@ -197,10 +206,12 @@ func (d deps) projectFor(ctx context.Context, repo github.Repo, userID string) (
 	if project.GitHubID != repo.ID {
 		return store.Project{}, false, errOtherRepo
 	}
-	if !project.IsMember || !project.IsMaintainer {
+	if !project.IsMember {
 		if err := d.rooms.JoinGroup(ctx, groupID(project.ID), userID); err != nil {
 			return store.Project{}, false, fmt.Errorf("%w: %v", errRoom, err)
 		}
+	}
+	if !project.IsMember || !project.IsMaintainer {
 		if err := d.projects.AddMaintainer(ctx, project.ID, userID); err != nil {
 			return store.Project{}, false, err
 		}
