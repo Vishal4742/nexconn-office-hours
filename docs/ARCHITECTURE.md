@@ -40,7 +40,7 @@
 ## 3. Data model (Postgres)
 ```
 users        id TEXT PK ('gh'||github_id), github_id BIGINT UNIQUE, login, name, avatar_url, created_at, deleted_at
-projects     id PK, owner, repo, UNIQUE(lower(owner), lower(repo)), description, nexconn_group_id, next_session_at, created_by, created_at
+projects     id TEXT PK (random, 26 chars), owner, repo, UNIQUE(lower(owner), lower(repo)), description, next_session_at, created_by, created_at
 maintainers  project_id, user_id, PK(project_id, user_id)                  -- source of truth for roles
 members      project_id, user_id, joined_at, PK(project_id, user_id)       -- written by /join; gives "unique participants"
 sessions     id PK, project_id, title, status ('live'|'ended'), planned_minutes, started_at, ended_at, hands_closed BOOL DEFAULT false, queue_version INT DEFAULT 0
@@ -61,7 +61,7 @@ Stats (FR-MET-1) are `COUNT` queries on these tables, with no events table. Rate
 |---|---|
 | User | Nexconn user `gh<githubId>`; token issued by our server (FR-AUTH-2) |
 | Bot | User `oh_bot`, name "Office Hours": token issued once at setup so push notifications show the right sender; sender of all OH:* messages |
-| Project room | Group channel `p<projectId>` (channel ids take letters and digits only, max 64), created by the server at registration; members added by `/join` (max 100 ids per call) |
+| Project room | Group channel `p<projectId>` (channel ids take letters and digits only, max 64), created by the server at registration; members added by `/join` (max 100 ids per call). **The project id is random** (`strings.ToLower(crypto/rand.Text())`): `CreateGroup` treats "already exists" as ours, and a signed-in user may be able to create groups from the browser SDK, so a guessable id could be taken first. For the same reason the group is created before the project row is written (`notes/phase-1-plan.md`, decision 3) |
 | Session card | Custom `OH:Session` (persisted, counted): `{sessionId, title, state:'live'\|'ended'}`; sent with an @all mention so members get an unread badge (FR-SESS-3) |
 | Hand card | Custom `OH:Hand` (persisted, counted): `{handId, sessionId, title, authorLogin}`. Cards can't change after sending, so the bubble reads the hand's live status from the client's queue store by `handId` |
 | FAQ card | Custom `OH:FAQ` (persisted, counted): `{faqId, slug, title}`. The bubble builds the link from `slug` on our own origin and never renders a URL from the payload |

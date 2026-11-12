@@ -69,7 +69,7 @@ Status: ⬜ not started · 🟨 in progress · ✅ closed (date). Bug severity: 
 **Gate:** AT-12, AT-13, AT-14 pass, and a full run of AT-1…AT-19 is green on production → **feature freeze**.
 
 ## P5 — Real sessions and hardening (Nov 19–21)
-**Tasks:** support the booked sessions; fix S1/S2 only · ECC `/security-scan` (agentshield needs the human's yes: it downloads a package) · `npm audit` (web) and `govulncheck` (server; needs the human's yes, it downloads a tool) · a full AT run after the last fix · stats screenshots and quotes · a clean backup demo recording.
+**Tasks:** support the booked sessions; fix S1/S2 only · ECC `/security-scan` (agentshield needs the human's yes: it downloads a package) · `npm audit` (web) and `govulncheck` (server; needs the human's yes, it downloads a tool) · a full AT run after the last fix · stats screenshots and quotes · a clean backup demo recording · **before the repo goes public or real users arrive, the owner replaces every secret that was shown in a chat session** (the Nexconn App Secret and the local GitHub OAuth client secret, both on 2026-11-12) and checks the production OAuth secret was never shown anywhere.
 **Gate:** no open S1/S2; security findings fixed or written up; traction evidence in `notes/phase-5.md`.
 
 ## P6 — Submission (Nov 22)
