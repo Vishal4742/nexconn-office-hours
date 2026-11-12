@@ -560,3 +560,37 @@
   overflow: hidden;
   clip-path: inset(50%);
 }
+
+/* The light follows the session (docs/UI.md S3): the four photos lie on top of each other and the
+   one for now fades in over 1.6 s. Each is scaled a little so the desk stays in the same place.
+   Glass is more opaque at dusk and night, so the text on it keeps its contrast. */
+.q-scene {
+  opacity: 0;
+  transition: opacity 1.6s ease;
+}
+.q-scene.is-on {
+  opacity: 1;
+}
+.q-scene-day {
+  transform: scale(1.04);
+}
+.q-scene-golden {
+  transform: scale(1.12);
+}
+.q-scene-dusk {
+  transform: scale(1.11);
+}
+.q-scene-night {
+  transform: scale(1.1);
+}
+.pane-queue[data-light="dusk"] .qcard {
+  background: rgba(255, 255, 255, 0.82);
+}
+.pane-queue[data-light="night"] .qcard {
+  background: rgba(255, 255, 255, 0.88);
+}
+@media (prefers-reduced-motion: reduce) {
+  .q-scene {
+    transition: none;
+  }
+}

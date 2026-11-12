@@ -3,6 +3,8 @@ import { useState } from "react";
 import { Avatar } from "../components/Avatar";
 import type { Person } from "../nexconn/roster";
 import type { Project } from "../projects";
+import { sessionLight } from "../queue/light";
+import type { Light } from "../queue/light";
 import { queueNews } from "../queue/news";
 import { refreshQueue } from "../queue/store";
 import type { QueueState } from "../queue/store";
@@ -27,6 +29,8 @@ type Props = {
 };
 
 const FACES = 3;
+/** The same scene at four times of day, in the order the session goes through them. */
+const LIGHTS: readonly Light[] = ["day", "golden", "dusk", "night"];
 /** How often the session's clock is read again: it shows whole minutes. */
 const TICK_MS = 15_000;
 
@@ -46,10 +50,27 @@ export function QueuePanel({
   const queue = state.status === "ready" ? state.queue : null;
   const news = useNews(queue);
   const session = queue?.session ?? null;
+  // The light changes every few minutes at most; reading the clock twice a minute is plenty.
+  const light = sessionLight(session, useServerNow(30_000));
 
   return (
-    <section className="pane-queue" aria-label="Queue" tabIndex={-1}>
-      <img className="q-scene" src="/panel-day.webp" alt="" />
+    <section
+      className="pane-queue"
+      aria-label="Queue"
+      tabIndex={-1}
+      data-light={light}
+    >
+      {/* ponytail: all four photos load with the room (about 270 KB together), so the next one is
+          ready to fade in. Load them as the session reaches each light if phones need the bytes. */}
+      {LIGHTS.map((each) => (
+        <img
+          key={each}
+          className={`q-scene q-scene-${each}${each === light ? " is-on" : ""}`}
+          src={`/panel-${each}.webp`}
+          alt=""
+          decoding="async"
+        />
+      ))}
       {/* NFR-A11Y-1: always in the page, so a screen reader hears each change of the queue. */}
       <p className="sr-only" role="status">
         {news}
