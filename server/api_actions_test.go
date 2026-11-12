@@ -286,6 +286,17 @@ func TestActionAway(t *testing.T) {
 		}
 	})
 
+	t.Run("FR-QUEUE-8: a store whose answer does not hold the hand: the action stands and the room gets the ping", func(t *testing.T) {
+		a := actionApp(t) // its store answers with a queue that has no hands in it
+		since := now()
+		res, body := call(a.mux, "POST", "/api/hands/101/away", "{}", a.as(t, hostID))
+		actionQueued(t, res, body)
+		actionAsked(t, a, queue.Away, actionNowID, since)
+		if a.chat.types() != "OH:Queue" {
+			t.Errorf("the room got %q, want the ping alone: nothing is known that could be said in words", a.chat.types())
+		}
+	})
+
 	t.Run("plan decision 6: the room is told who it was even when the maintainer's page went away once the action was written", func(t *testing.T) {
 		a := actionApp(t)
 		a.queue.applied = missed(queue.Waiting, 1, 3)
@@ -405,6 +416,9 @@ func TestDoneHand(t *testing.T) {
 			{"a link that borrows the page's scheme", doneAnswer, []string{"//example.com/docs"}, "Link 1 isn't a web address"},
 			{"words", doneAnswer, []string{"see the docs"}, "Link 1 isn't a web address"},
 			{"a space in the host", doneAnswer, []string{"https://exa mple.com/docs"}, "Link 1 isn't a web address"},
+			{"two links in one field", doneAnswer, []string{"https://example.com/a https://example.com/b"}, "Link 1 isn't a web address"},
+			{"two links on two lines of one field", doneAnswer, []string{"https://example.com/a\nhttps://example.com/b"}, "Link 1 isn't a web address"},
+			{"a space that does not break in a path", doneAnswer, []string{"https://example.com/a b"}, "Link 1 isn't a web address"},
 			{"a broken escape", doneAnswer, []string{"https://example.com/%zz"}, "Link 1 isn't a web address"},
 			{"a link of 500 characters", doneAnswer, []string{site + strings.Repeat("a", 480)}, ""},
 			{"a link of 500 characters of three bytes each", doneAnswer, []string{site + strings.Repeat("語", 480)}, ""},
