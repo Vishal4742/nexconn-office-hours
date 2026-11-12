@@ -220,11 +220,14 @@
   line-height: 24px;
   font-weight: 500;
 }
+.land-ui-title:first-child {
+  margin-top: 0;
+}
 .land-ui-meta {
   color: var(--muted);
 }
 .land-live {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: 8px;
   font: 500 12px/16px var(--mono);
