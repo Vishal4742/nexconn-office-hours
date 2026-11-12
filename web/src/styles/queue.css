@@ -1,3 +1,548 @@
 /* The queue panel over the room's photo: now answering, my place, the waiting list, the main action. Owned by the queue panel (worker 5) of the
    parallel build (notes/phase-2-plan.md). It is loaded after app.css, so a rule here wins over
-   the rule it replaces there. */
+   the rule it replaces there. Values from the approved demo (docs/UI.md S3); the base look of
+   .pane-queue, .q-scene, .q-top, .qcard, .q-chip and .off-card is in app.css. */
+
+/* ---------- layout: the cards, a window onto the desk, the main action ---------- */
+.q-top {
+  justify-content: flex-start;
+}
+.q-members {
+  margin-left: auto;
+}
+/* Only the waiting card gives up height; if even that is not enough, the cards scroll. */
+.q-body {
+  position: relative;
+  flex: 0 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+.q-body > * {
+  flex-shrink: 0;
+}
+/* A window of at least 104 px stays free, so the desk and the lamp are always in view. */
+.q-window {
+  flex: 1 0 104px;
+}
+.q-foot {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.q-foot-note {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 16px;
+  text-align: center;
+}
+.q-btns {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.q-eyebrow {
+  font: 500 12px/16px var(--mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.q-count {
+  font: 400 12px/16px var(--mono);
+  color: var(--muted);
+}
+.q-mono {
+  font-family: var(--mono);
+}
+.q-login {
+  font-family: var(--mono);
+  overflow-wrap: anywhere;
+}
+.q-note {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+.q-note-title {
+  font-weight: 600;
+}
+
+/* ---------- the top row ---------- */
+.q-live-dot {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  border-radius: 999px;
+  background: var(--blue);
+  animation: q-breathe 2.4s var(--ease) infinite;
+}
+@keyframes q-breathe {
+  50% {
+    opacity: 0.45;
+    transform: scale(0.8);
+  }
+}
+
+/* ---------- loading ---------- */
+.q-loading {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.q-skel {
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.55);
+  animation: sk 1.2s ease-in-out infinite;
+}
+.q-skel-now {
+  height: 124px;
+}
+.q-skel-list {
+  height: 196px;
+}
+
+/* ---------- now answering: the one solid blue card ---------- */
+.q-now {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+  border-radius: 16px;
+  background: var(--blue);
+  color: var(--blue-ink);
+  box-shadow: 0 12px 32px rgba(0, 71, 255, 0.28);
+}
+/* A faint dot texture in a corner. */
+.q-now::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(
+      circle,
+      rgba(255, 255, 255, 0.26) 1.2px,
+      transparent 1.8px
+    )
+    0 0 / 10px 10px;
+  -webkit-mask-image: radial-gradient(
+    90% 130% at 100% 0%,
+    #000,
+    transparent 62%
+  );
+  mask-image: radial-gradient(90% 130% at 100% 0%, #000, transparent 62%);
+}
+.q-now > * {
+  position: relative;
+  z-index: 1;
+}
+.q-now :focus-visible {
+  outline-color: #fff;
+}
+.q-now a:not(.btn) {
+  color: #fff;
+}
+.q-now .q-eyebrow,
+.q-now .q-said {
+  color: rgba(255, 255, 255, 0.88);
+}
+.q-now .q-said-no {
+  color: #fff;
+  font-weight: 600;
+}
+.q-now-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+.q-now-who {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.q-now-who .av {
+  width: 40px;
+  height: 40px;
+  border: 0;
+  background: rgba(255, 255, 255, 0.16);
+  box-shadow: 0 0 0 2px #fff;
+  color: #fff;
+  font-size: 14px;
+}
+.q-now-title {
+  font-size: 18px;
+  line-height: 26px;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+.q-now-details {
+  max-height: 120px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: rgba(255, 255, 255, 0.92);
+}
+.q-also,
+.q-ack {
+  font: 500 12px/16px var(--mono);
+  color: rgba(255, 255, 255, 0.88);
+}
+.q-ack {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.q-ack svg {
+  width: 14px;
+  height: 14px;
+}
+.q-now-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+.btn.q-on-blue {
+  background: #fff;
+  color: var(--blue);
+}
+.btn.q-on-blue:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.88);
+}
+.btn.q-on-blue-ghost {
+  border-color: rgba(255, 255, 255, 0.4);
+  color: #fff;
+}
+.btn.q-on-blue-ghost:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+/* ---------- my place: the selection box of the landing's "once." ---------- */
+.q-mine {
+  position: relative;
+  margin: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 16px;
+  border: 1.5px solid var(--blue);
+  border-radius: 2px;
+  background: rgba(238, 242, 255, 0.9);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+.q-mine::before,
+.q-mine::after {
+  content: "";
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: #fff;
+  border: 2px solid var(--blue);
+}
+.q-mine::before {
+  left: -6px;
+  top: -6px;
+}
+.q-mine::after {
+  right: -6px;
+  bottom: -6px;
+}
+.q-mine-pos {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--blue);
+  font-size: 20px;
+  line-height: 28px;
+  font-weight: 600;
+}
+.q-mine-pos svg {
+  width: 18px;
+  height: 18px;
+  flex: none;
+}
+.q-mine-note {
+  color: var(--muted);
+}
+
+/* ---------- waiting ---------- */
+.q-body > .q-wait {
+  flex-shrink: 1;
+  min-height: 112px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+.q-body > .q-wait-slim {
+  min-height: 0;
+}
+.q-wait-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  padding: 0 4px 4px;
+}
+.q-closed {
+  color: var(--amber);
+  font-weight: 500;
+}
+.q-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.q-row {
+  display: grid;
+  grid-template-columns: 20px 28px minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 0 10px;
+  padding: 6px 4px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+}
+.q-row-mine {
+  background: var(--blue-wash);
+  border-color: rgba(0, 71, 255, 0.3);
+}
+.q-num {
+  font: 500 12px/28px var(--mono);
+  color: var(--muted);
+}
+.q-row-mine .q-num {
+  color: var(--blue);
+}
+.q-who {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0 8px;
+  min-width: 0;
+  min-height: 28px;
+}
+.q-you {
+  font: 500 12px/16px var(--mono);
+  color: var(--blue);
+}
+.q-side {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 28px;
+}
+.q-ttl,
+.q-acts,
+.q-row > .q-said {
+  grid-column: 3 / span 2;
+}
+.q-ttl {
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.q-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+.q-row > .q-said {
+  margin-top: 4px;
+}
+.q-plus {
+  font: 500 12px/16px var(--mono);
+  padding: 4px 8px;
+  border-radius: 999px;
+  box-shadow: var(--ring);
+  color: var(--muted);
+  background: var(--surface);
+  transition: background-color 0.15s var(--ease);
+}
+.q-plus:hover:not(:disabled) {
+  background: var(--sunken);
+}
+.q-plus[aria-pressed="true"] {
+  background: var(--blue-wash);
+  color: var(--blue);
+  box-shadow: 0 0 0 1px rgba(0, 71, 255, 0.3);
+}
+.q-plus:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+/* ---------- done this session ---------- */
+.q-done {
+  margin-top: 8px;
+  border-top: 1px solid rgba(20, 21, 26, 0.1);
+}
+.q-done:first-child,
+.q-wait-slim .q-done {
+  margin-top: 0;
+  border-top: 0;
+}
+.q-wait-slim > p + .q-done {
+  margin-top: 8px;
+  border-top: 1px solid rgba(20, 21, 26, 0.1);
+}
+.q-done summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 4px 0;
+  border-radius: 4px;
+  color: var(--muted);
+  cursor: pointer;
+  list-style: none;
+}
+.q-done summary::-webkit-details-marker {
+  display: none;
+}
+.q-done summary .q-count {
+  margin-left: auto;
+}
+/* A small chevron that turns when the list opens. */
+.q-done summary::after {
+  content: "";
+  width: 7px;
+  height: 7px;
+  margin: -4px 4px 0 0;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(45deg);
+  transition: transform 0.25s var(--ease);
+}
+.q-done[open] summary::after {
+  margin-top: 4px;
+  transform: rotate(-135deg);
+}
+.q-done ul {
+  list-style: none;
+}
+.q-done-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 4px 8px;
+  padding: 8px 4px 0;
+}
+.q-done-item > :nth-child(n + 3) {
+  grid-column: 1 / -1;
+  justify-self: start;
+}
+.q-done-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+}
+.q-fate {
+  font: 500 12px/16px var(--mono);
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--hairline);
+  color: var(--muted);
+  white-space: nowrap;
+}
+.q-fate-answered {
+  color: var(--green);
+  border-color: currentColor;
+}
+.q-fate-skipped {
+  color: var(--amber);
+  border-color: currentColor;
+}
+.q-fate-carried {
+  border-color: var(--muted);
+}
+.q-fate-not_reached,
+.q-fate-withdrawn,
+.q-fate-removed {
+  text-decoration: line-through;
+}
+
+/* ---------- no live session ---------- */
+.q-off-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.q-next-at {
+  margin-top: 4px;
+}
+.q-next {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+.q-next label {
+  font-weight: 600;
+}
+.q-next input {
+  flex: 1 1 180px;
+  min-width: 0;
+  border: 1px solid var(--hairline);
+  border-radius: 12px;
+  padding: 4px 10px;
+  background: var(--surface);
+  font-size: 16px; /* below 16px, phones zoom into a focused field */
+  line-height: 24px;
+  transition: border-color 0.3s var(--ease);
+}
+.q-next input:focus {
+  border-color: var(--blue);
+}
+
+/* ---------- what an action said, and asking once ---------- */
+.q-said {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--muted);
+}
+.q-said-no {
+  color: var(--amber);
+  font-weight: 500;
+}
+.q-ask {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.q-ask > span {
+  flex-basis: 100%;
+}
+
+/* ---------- the main action ---------- */
+.q-badge {
+  font: 500 12px/16px var(--mono);
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.22);
+}
+
+/* Below 1040 px the panel is the room's "Queue" tab on a phone: less window, no faces. */
+@media (max-width: 1039px) {
+  .q-window {
+    flex-basis: 72px;
+  }
+  .q-members .av-stack {
+    display: none;
+  }
+}
