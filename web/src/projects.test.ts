@@ -1,7 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError } from "./api";
-import { listMyProjects, parseRepo, registerProject } from "./projects";
+import {
+  listMyProjects,
+  parseRepo,
+  registerProject,
+  roomPath,
+} from "./projects";
 
 function stubFetch(status: number, body: string) {
   const fetchMock = vi.fn(
@@ -67,6 +72,14 @@ describe("parseRepo", () => {
     "https://evil.example/github.com/paperplane/stash",
   ])("NFR-SEC-3: refuses %j", (input) => {
     expect(parseRepo(input)).toBeNull();
+  });
+});
+
+describe("roomPath", () => {
+  it("FR-PROJ-3: a project's room lives at /p/owner/repo, in GitHub's spelling", () => {
+    expect(roomPath({ owner: "PaperPlane", repo: "Stash.js" })).toBe(
+      "/p/PaperPlane/Stash.js",
+    );
   });
 });
 

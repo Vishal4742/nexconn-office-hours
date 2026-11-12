@@ -183,6 +183,11 @@ func writeError(w http.ResponseWriter, err error) {
 		writeJSON(w, refusal.Status, envelope{Error: refusal.Msg})
 		return
 	}
+	// The session is fine but its user row is gone. A new sign-in writes the row again.
+	if errors.Is(err, store.ErrUnknownUser) {
+		writeJSON(w, http.StatusUnauthorized, envelope{Error: "Your sign-in is out of date. Sign in again to continue."})
+		return
+	}
 	log.Printf("internal error: %v", err)
 	writeJSON(w, http.StatusInternalServerError, envelope{Error: "Something went wrong on our side. Try again."})
 }
