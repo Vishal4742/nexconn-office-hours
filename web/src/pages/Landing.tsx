@@ -1,11 +1,28 @@
-import { signInHref, signInMessage, useAuth } from "../auth";
-import { Check, GitHubMark } from "../components/Icons";
-import { Link } from "../components/Link";
+import { useLayoutEffect } from "react";
 
-/** S1: say what this is in a few seconds, and offer the one action. Art and the story come in P4. */
+import { signInHref, signInMessage } from "../auth";
+import { GitHubMark } from "../components/Icons";
+import { Closing } from "../landing/Closing";
+import { Facts } from "../landing/Facts";
+import { Hero } from "../landing/Hero";
+import { Questions } from "../landing/Questions";
+import { Sky } from "../landing/Sky";
+import { StorySection } from "../landing/StorySection";
+
+/**
+ * S1 (docs/UI.md): what Office Hours is in twenty seconds, then one session hour by hour, three
+ * numbers, the questions a maintainer asks first, and the action again.
+ */
 export function Landing() {
-  const auth = useAuth();
   const failure = signInMessage(window.location.search);
+
+  // Dark mode belongs to this page alone (docs/UI.md §1): its tokens apply under this class, which
+  // is on <html> only while the page is shown. Set before paint, so no light frame shows first.
+  useLayoutEffect(() => {
+    const root = document.documentElement;
+    root.classList.add("land-page");
+    return () => root.classList.remove("land-page");
+  }, []);
 
   return (
     <div className="wrap">
@@ -18,56 +35,12 @@ export function Landing() {
           </a>
         </p>
       )}
-      <section className="hero" aria-labelledby="hero-h">
-        <div>
-          <h1 id="hero-h">
-            Answer every question{" "}
-            <span className="sel">
-              <span className="serif">once.</span>
-              <i className="hd tl" />
-              <i className="hd br" />
-            </span>
-          </h1>
-          <p className="sub">
-            Live office hours for your open source project. Contributors raise a
-            hand, you take them one at a time, and every answer becomes a public
-            page with its own link.
-          </p>
-          <div className="ctas">
-            {auth.status === "signedIn" ? (
-              <Link href="/dashboard" className="btn primary lg">
-                Go to your dashboard
-              </Link>
-            ) : (
-              <a className="btn primary lg" href={signInHref("/dashboard")}>
-                <GitHubMark />
-                Host office hours for your repo
-              </a>
-            )}
-          </div>
-          <p className="proof">
-            <span>
-              <Check />
-              Free for open source
-            </span>
-            <span>
-              <Check />
-              Sign in with GitHub
-            </span>
-            <span>
-              <Check />
-              Nothing to install
-            </span>
-          </p>
-        </div>
-        <img
-          className="hero-photo"
-          src="/hero-meadow.webp"
-          alt="A wooden desk with a lamp and a chair on a meadow, in the afternoon"
-          width={1536}
-          height={864}
-        />
-      </section>
+      <Hero />
+      <StorySection />
+      <Facts />
+      <Sky />
+      <Questions />
+      <Closing />
       <footer className="foot">
         <span>Office Hours · built on Nexconn Chat</span>
       </footer>
