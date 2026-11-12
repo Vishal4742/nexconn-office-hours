@@ -6,6 +6,7 @@ import { Header } from "./components/Header";
 import { Dashboard } from "./pages/Dashboard";
 import { Landing } from "./pages/Landing";
 import { NotFound } from "./pages/NotFound";
+import { Room } from "./pages/Room";
 import { useRoute } from "./router";
 
 // P0 only: the Chat UI test page loads the Nexconn SDK on demand. It goes when the real room lands.
@@ -32,8 +33,14 @@ export default function App() {
       <main id="main">
         {route.name === "landing" && <Landing />}
         {route.name === "dashboard" && <Dashboard />}
-        {/* The project page arrives with the room slices. */}
-        {(route.name === "room" || route.name === "notFound") && <NotFound />}
+        {route.name === "room" && (
+          <Room
+            key={`${route.owner}/${route.repo}`.toLowerCase()}
+            owner={route.owner}
+            repo={route.repo}
+          />
+        )}
+        {route.name === "notFound" && <NotFound />}
       </main>
     </>
   );

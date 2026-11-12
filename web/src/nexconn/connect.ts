@@ -24,3 +24,26 @@ export async function connectWithFreshToken(
   if (first.ok || !TOKEN_REFUSED.includes(first.code)) return first;
   return deps.connect(await deps.fetchToken());
 }
+
+/** Chat UI answers this while its channel list is still loading after a connect. */
+export const CHANNEL_LIST_NOT_READY = 39005;
+
+export type OpenOutcome = { readonly isOk: boolean; readonly code: number };
+
+/**
+ * Opens a channel, and tries again for as long as Chat UI says its channel list is not ready.
+ * Any other refusal is returned at once. `pause` waits between two tries.
+ */
+export async function openWhenReady<T extends OpenOutcome>(
+  open: () => Promise<T>,
+  pause: () => Promise<void>,
+  attempts = 20,
+): Promise<T> {
+  let outcome = await open();
+  for (let tries = 1; tries < attempts; tries++) {
+    if (outcome.isOk || outcome.code !== CHANNEL_LIST_NOT_READY) break;
+    await pause();
+    outcome = await open();
+  }
+  return outcome;
+}

@@ -112,6 +112,46 @@ func (s *Store) AddMaintainer(ctx context.Context, projectID, userID string) err
 	return nil
 }
 
+// AddMember records that a user joined a project's room (FR-PROJ-4). Joining twice is one row.
+func (s *Store) AddMember(ctx context.Context, projectID, userID string) error {
+	_, err := s.pool.Exec(ctx, `INSERT INTO members (project_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`, projectID, userID)
+	if err != nil {
+		return unknownUserOr("add member", err)
+	}
+	return nil
+}
+
+// Member is one person in a room, as the chat shows them.
+type Member struct {
+	UserID    string
+	Name      string // never empty: the login stands in for a missing display name
+	AvatarURL string
+}
+
+// maxMembersListed bounds one room's member list.
+// ponytail: no paging. Nexconn caps a group well below this on the plans we use; page the list
+// when a room can be larger.
+const maxMembersListed = 3000
+
+// Members lists who is in a project's room, in the order they joined.
+func (s *Store) Members(ctx context.Context, projectID string) ([]Member, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT u.id, COALESCE(NULLIF(u.name, ''), u.login), u.avatar_url
+		FROM members m
+		JOIN users u ON u.id = m.user_id
+		WHERE m.project_id = $1
+		ORDER BY m.joined_at, u.id
+		LIMIT $2`, projectID, maxMembersListed)
+	if err != nil {
+		return nil, fmt.Errorf("store: list members: %w", err)
+	}
+	members, err := pgx.CollectRows(rows, pgx.RowToStructByPos[Member])
+	if err != nil {
+		return nil, fmt.Errorf("store: list members: %w", err)
+	}
+	return members, nil
+}
+
 // maxProjectsListed bounds the dashboard's list.
 // ponytail: no paging. Add it when someone is in more rooms than this.
 const maxProjectsListed = 100

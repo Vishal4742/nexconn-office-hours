@@ -39,6 +39,8 @@ type projectStore interface {
 	ProjectByRepo(ctx context.Context, owner, repo, viewerID string) (store.Project, bool, error)
 	CreateProject(ctx context.Context, p store.Project, creatorID string) (store.Project, bool, error)
 	AddMaintainer(ctx context.Context, projectID, userID string) error
+	AddMember(ctx context.Context, projectID, userID string) error
+	Members(ctx context.Context, projectID string) ([]store.Member, error)
 	ProjectsOf(ctx context.Context, userID string) ([]store.Project, error)
 }
 
@@ -52,9 +54,10 @@ var errOtherRepo = errors.New("the name is registered for another repository")
 // name a room's group before the server has created it (see nexconn.CreateGroup).
 func groupID(projectID string) string { return "p" + projectID }
 
-// projectJSON is a project as the API describes it to one caller.
+// projectJSON is a project as the API describes it to one caller. The project's id stays on the
+// server: pages address a project by owner and repo.
 type projectJSON struct {
-	ID           string `json:"id,omitempty"` // left out for signed-out visitors: it names the chat room
+	GroupID      string `json:"groupId,omitempty"` // the chat room, told to its members only
 	Owner        string `json:"owner"`
 	Repo         string `json:"repo"`
 	Description  string `json:"description"`
@@ -63,7 +66,18 @@ type projectJSON struct {
 }
 
 func describe(p store.Project) projectJSON {
-	return projectJSON{p.ID, p.Owner, p.Repo, p.Description, p.IsMember, p.IsMaintainer}
+	out := projectJSON{Owner: p.Owner, Repo: p.Repo, Description: p.Description, IsMember: p.IsMember, IsMaintainer: p.IsMaintainer}
+	if p.IsMember {
+		out.GroupID = groupID(p.ID)
+	}
+	return out
+}
+
+// memberJSON is one person of a room: what the chat needs to show them, and no more.
+type memberJSON struct {
+	UserID    string `json:"userId"`
+	Name      string `json:"name"`
+	AvatarURL string `json:"avatarUrl"`
 }
 
 // registerProject makes a repository the caller maintains a project with a room (FR-PROJ-1,
@@ -195,31 +209,94 @@ func (d deps) projectFor(ctx context.Context, repo github.Repo, userID string) (
 	return project, created, nil
 }
 
-// projectPage is what the page /p/{owner}/{repo} needs first (FR-PROJ-3). It is public. A
-// signed-in caller also learns the project's id and what they are in it.
-func (d deps) projectPage(w http.ResponseWriter, r *http.Request) {
+// projectOfPath finds the project a /api/p/{owner}/{repo}… request is about, as userID sees it.
+// When there is none to return it has answered the request itself.
+func (d deps) projectOfPath(w http.ResponseWriter, r *http.Request, userID string) (store.Project, bool) {
 	owner, repo := r.PathValue("owner"), r.PathValue("repo")
 	if !validOwnerRepo(owner, repo) {
 		writeJSON(w, http.StatusNotFound, envelope{Error: "There is no such project."})
-		return
+		return store.Project{}, false
 	}
 	if d.projects == nil {
 		writeJSON(w, http.StatusServiceUnavailable, envelope{Error: projectsNotSetUp})
-		return
+		return store.Project{}, false
 	}
+	project, found, err := d.projects.ProjectByRepo(r.Context(), owner, repo, userID)
+	if err != nil {
+		writeError(w, err)
+		return store.Project{}, false
+	}
+	if !found {
+		writeJSON(w, http.StatusNotFound, envelope{Error: "Nobody hosts office hours for " + owner + "/" + repo + " yet."})
+		return store.Project{}, false
+	}
+	return project, true
+}
+
+// projectPage is what the page /p/{owner}/{repo} needs first (FR-PROJ-3). It is public. A
+// signed-in caller also learns what they are in the project, and a member which chat room it is.
+func (d deps) projectPage(w http.ResponseWriter, r *http.Request) {
 	viewer, _ := d.guard.User(r) // signed out is fine here: the zero user is nobody
-	project, found, err := d.projects.ProjectByRepo(r.Context(), owner, repo, viewer.ID)
+	if project, ok := d.projectOfPath(w, r, viewer.ID); ok {
+		writeJSON(w, http.StatusOK, envelope{OK: true, Data: describe(project)})
+	}
+}
+
+// joinRoom adds the caller to a project's room (FR-PROJ-4): the Nexconn group first and the
+// members row second, so a row always means the person is in the group (plan decision 3).
+func (d deps) joinRoom(w http.ResponseWriter, r *http.Request) {
+	u, err := d.guard.Mutation(w, r, nil)
 	if err != nil {
 		writeError(w, err)
 		return
 	}
-	if !found {
-		writeJSON(w, http.StatusNotFound, envelope{Error: "Nobody hosts office hours for " + owner + "/" + repo + " yet."})
+	if d.rooms == nil {
+		writeJSON(w, http.StatusServiceUnavailable, envelope{Error: "The chat isn't set up on this server yet."})
 		return
 	}
-	out := describe(project)
-	if viewer.ID == "" {
-		out.ID = ""
+	project, ok := d.projectOfPath(w, r, u.ID)
+	if !ok {
+		return
+	}
+	if !project.IsMember {
+		if err := d.rooms.JoinGroup(r.Context(), groupID(project.ID), u.ID); err != nil {
+			log.Printf("join %s/%s: %v", project.Owner, project.Repo, err)
+			writeJSON(w, http.StatusBadGateway, envelope{Error: "We couldn't add you to the chat room. Try again in a moment."})
+			return
+		}
+		if err := d.projects.AddMember(r.Context(), project.ID, u.ID); err != nil {
+			writeError(w, err)
+			return
+		}
+		project.IsMember = true
+	}
+	writeJSON(w, http.StatusOK, envelope{OK: true, Data: describe(project)})
+}
+
+// roomMembers lists who is in the room, so the chat can show names and avatars (FR-PROJ-4). For
+// members only: joining is one click, but who takes part in a room is not for passers-by.
+func (d deps) roomMembers(w http.ResponseWriter, r *http.Request) {
+	u, err := d.guard.User(r)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	project, ok := d.projectOfPath(w, r, u.ID)
+	if !ok {
+		return
+	}
+	if !project.IsMember {
+		writeError(w, &guard.Error{Status: http.StatusForbidden, Msg: "Join this room first."})
+		return
+	}
+	members, err := d.projects.Members(r.Context(), project.ID)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	out := make([]memberJSON, 0, len(members))
+	for _, m := range members {
+		out = append(out, memberJSON(m))
 	}
 	writeJSON(w, http.StatusOK, envelope{OK: true, Data: out})
 }

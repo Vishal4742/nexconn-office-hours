@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 
-import { ApiError } from "../api";
+import { ApiError, errorMessage } from "../api";
 import { retryAuth, signInHref, useAuth } from "../auth";
 import { GitHubMark } from "../components/Icons";
 import { Link } from "../components/Link";
 import {
+  isSameRepo,
   listMyProjects,
   parseRepo,
   registerProject,
@@ -68,12 +69,6 @@ type List =
 /** What the last registration did, said once above the list. */
 type Added = { readonly project: Project; readonly wasListed: boolean };
 
-function messageOf(failure: unknown): string {
-  return failure instanceof Error
-    ? failure.message
-    : "Something went wrong. Try again.";
-}
-
 function Projects() {
   const [list, setList] = useState<List>({ status: "loading" });
   const [loads, setLoads] = useState(0);
@@ -87,7 +82,7 @@ function Projects() {
       },
       (failure: unknown) => {
         if (isCurrent)
-          setList({ status: "failed", message: messageOf(failure) });
+          setList({ status: "failed", message: errorMessage(failure) });
       },
     );
     return () => {
@@ -103,7 +98,7 @@ function Projects() {
   function handleRegistered(project: Project) {
     const wasListed =
       list.status === "ready" &&
-      list.projects.some((listed) => listed.id === project.id);
+      list.projects.some((listed) => isSameRepo(listed, project));
     setAdded({ project, wasListed });
     // The server owns the order of the list, so the list is asked for again. What is on screen
     // stays there until the new one arrives.
@@ -177,7 +172,7 @@ function RegisterForm({ onRegistered }: RegisterFormProps) {
     } catch (failure) {
       setSubmission({
         status: "refused",
-        message: messageOf(failure),
+        message: errorMessage(failure),
         // Our own session ran out, or GitHub stopped accepting the token inside it.
         needsSignIn: failure instanceof ApiError && failure.status === 401,
       });
@@ -267,7 +262,7 @@ function ProjectList({ list, onRetry }: ProjectListProps) {
   return (
     <ul className="projects" aria-label="Your projects">
       {list.projects.map((project) => (
-        <li key={project.id}>
+        <li key={roomPath(project)}>
           <Link href={roomPath(project)} className="project">
             <span className="project-name">
               {project.owner}/{project.repo}
