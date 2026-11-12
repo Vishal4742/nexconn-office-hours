@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
 )
@@ -27,6 +28,13 @@ const faqMatch = `
 	WHERE f.project_id = $1 AND f.deleted_at IS NULL AND f.search @@ q
 	ORDER BY ts_rank(setweight(to_tsvector('english', f.title), 'A') || f.search, q) DESC, f.created_at DESC, f.id DESC
 	LIMIT $2`
+
+// faqSearchable is typed search text as Postgres takes it: a NUL and the bytes that are no UTF-8
+// are left out, because Postgres refuses a text that holds either. Search text is never stored,
+// so nothing is lost.
+func faqSearchable(text string) string {
+	return strings.ReplaceAll(strings.ToValidUTF8(text, ""), "\x00", "")
+}
 
 // faqScan reads one row of faqSelect.
 func faqScan(row pgx.CollectableRow) (FAQEntry, error) {
@@ -54,6 +62,7 @@ func (s *Store) faqRows(ctx context.Context, what, sql string, args ...any) ([]F
 // is what someone typed into a search field: every word must match, "quoted words" match as a
 // phrase, and nothing in it can be a syntax error.
 func (s *Store) FAQList(ctx context.Context, projectID, query string, limit int) ([]FAQEntry, error) {
+	query = faqSearchable(query)
 	if query == "" {
 		return s.faqRows(ctx, "list FAQ entries", faqSelect+`
 			WHERE f.project_id = $1 AND f.deleted_at IS NULL
@@ -84,7 +93,7 @@ func (s *Store) FAQSuggest(ctx context.Context, projectID, text string, limit in
 		CROSS JOIN (
 			SELECT string_agg('''' || replace(replace(lexeme, E'\\', E'\\\\'), '''', '''''') || '''', ' | ')::tsquery
 			FROM unnest(to_tsvector('english', $3::text))
-		) AS words (q)`+faqMatch, projectID, limit, text)
+		) AS words (q)`+faqMatch, projectID, limit, faqSearchable(text))
 }
 
 // ProjectOfFAQ says which project an entry belongs to. A deleted entry still belongs to its
