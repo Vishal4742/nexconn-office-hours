@@ -172,6 +172,25 @@ func (s *Store) Members(ctx context.Context, projectID string) ([]Member, error)
 	return members, nil
 }
 
+// IsMember reports whether the user has joined the project's room. With IsMaintainer it is what
+// the guard asks before a request that needs a role (NFR-SEC-2).
+func (s *Store) IsMember(ctx context.Context, projectID, userID string) (bool, error) {
+	return s.hasRow(ctx, `SELECT EXISTS (SELECT 1 FROM members WHERE project_id = $1 AND user_id = $2)`, projectID, userID)
+}
+
+// IsMaintainer reports whether the user maintains the project.
+func (s *Store) IsMaintainer(ctx context.Context, projectID, userID string) (bool, error) {
+	return s.hasRow(ctx, `SELECT EXISTS (SELECT 1 FROM maintainers WHERE project_id = $1 AND user_id = $2)`, projectID, userID)
+}
+
+func (s *Store) hasRow(ctx context.Context, sql, projectID, userID string) (bool, error) {
+	var has bool
+	if err := s.pool.QueryRow(ctx, sql, projectID, userID).Scan(&has); err != nil {
+		return false, fmt.Errorf("store: role lookup: %w", err)
+	}
+	return has, nil
+}
+
 // maxProjectsListed bounds the dashboard's list.
 // ponytail: no paging. Add it when someone is in more rooms than this.
 const maxProjectsListed = 100

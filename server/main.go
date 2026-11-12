@@ -206,7 +206,12 @@ func newDeps(ctx context.Context, cfg config) (deps, error) {
 	if err != nil {
 		return deps{}, fmt.Errorf("database: %w", err)
 	}
-	g, err := guard.New(cfg.AppURL, sessions, nil) // roles join with the first route that needs one (the room's member list)
+	// Roles come from the database (NFR-SEC-2). Without one a role check answers with an error.
+	var roles guard.Roles
+	if db != nil {
+		roles = db
+	}
+	g, err := guard.New(cfg.AppURL, sessions, roles)
 	if err != nil {
 		return deps{}, err
 	}

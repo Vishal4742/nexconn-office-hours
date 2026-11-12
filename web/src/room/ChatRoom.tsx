@@ -30,6 +30,12 @@ export function ChatRoom({ groupId, owner, repo, onMembers }: Props) {
     const leaving = new AbortController();
     let close = () => {};
     loadRoom()
+      .catch(() => {
+        // The browser's own text for this names a script file. Ours says what to do.
+        throw new Error(
+          "The chat could not be loaded. Check your connection, or reload the page.",
+        );
+      })
       .then((room) =>
         room.openRoom(
           host,

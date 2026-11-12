@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 
-import { ApiError, errorMessage } from "../api";
+import { errorMessage, refusalOf } from "../api";
+import type { Sending } from "../api";
 import { retryAuth, signInHref, useAuth } from "../auth";
 import { GitHubMark } from "../components/Icons";
 import { Link } from "../components/Link";
@@ -134,15 +135,6 @@ function Projects() {
   );
 }
 
-type Submission =
-  | { readonly status: "idle" }
-  | { readonly status: "sending" }
-  | {
-      readonly status: "refused";
-      readonly message: string;
-      readonly needsSignIn: boolean;
-    };
-
 type RegisterFormProps = {
   readonly onRegistered: (project: Project) => void;
 };
@@ -150,7 +142,7 @@ type RegisterFormProps = {
 /** FR-PROJ-1: one field. The server asks GitHub whether the person maintains the repo. */
 function RegisterForm({ onRegistered }: RegisterFormProps) {
   const [value, setValue] = useState("");
-  const [submission, setSubmission] = useState<Submission>({ status: "idle" });
+  const [submission, setSubmission] = useState<Sending>({ status: "idle" });
   const isSending = submission.status === "sending";
   const isRefused = submission.status === "refused";
 
@@ -173,12 +165,7 @@ function RegisterForm({ onRegistered }: RegisterFormProps) {
       setSubmission({ status: "idle" });
       onRegistered(project);
     } catch (failure) {
-      setSubmission({
-        status: "refused",
-        message: errorMessage(failure),
-        // Our own session ran out, or GitHub stopped accepting the token inside it.
-        needsSignIn: failure instanceof ApiError && failure.status === 401,
-      });
+      setSubmission({ status: "refused", ...refusalOf(failure) });
     }
   }
 

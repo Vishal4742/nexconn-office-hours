@@ -16,6 +16,26 @@ export function errorMessage(failure: unknown): string {
     : "Something went wrong. Try again.";
 }
 
+/** A failed attempt at something, as a form shows it. */
+export type Refusal = {
+  readonly message: string;
+  /** The session ran out, or GitHub no longer accepts its token: signing in again is the cure. */
+  readonly needsSignIn: boolean;
+};
+
+/** What a form that sends one request is doing. */
+export type Sending =
+  | { readonly status: "idle" }
+  | { readonly status: "sending" }
+  | ({ readonly status: "refused" } & Refusal);
+
+export function refusalOf(failure: unknown): Refusal {
+  return {
+    message: errorMessage(failure),
+    needsSignIn: failure instanceof ApiError && failure.status === 401,
+  };
+}
+
 type Envelope = {
   readonly ok: boolean;
   readonly data?: unknown;
@@ -38,7 +58,7 @@ function fallbackMessage(status: number): string {
 }
 
 async function request<T>(
-  method: "GET" | "POST" | "DELETE",
+  method: "GET" | "POST",
   path: string,
   body?: unknown,
 ): Promise<T> {
@@ -78,6 +98,4 @@ export const api = {
   get: <T>(path: string) => request<T>("GET", path),
   post: <T = void>(path: string, body?: unknown) =>
     request<T>("POST", path, body),
-  delete: <T = void>(path: string, body?: unknown) =>
-    request<T>("DELETE", path, body),
 };
