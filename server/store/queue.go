@@ -129,7 +129,9 @@ func (s *Store) Queue(ctx context.Context, projectID string) (Snapshot, error) {
 		snap Snapshot
 		next *time.Time
 	)
-	err = tx.QueryRow(ctx, `SELECT next_session_at FROM projects WHERE id = $1`, projectID).Scan(&next)
+	// A planned time that has passed is no plan any more (FR-SESS-5): that session began or was
+	// missed, and nobody should be told to wait for it.
+	err = tx.QueryRow(ctx, `SELECT next_session_at FROM projects WHERE id = $1 AND next_session_at > now()`, projectID).Scan(&next)
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return Snapshot{}, fmt.Errorf("store: queue: %w", err)
 	}
