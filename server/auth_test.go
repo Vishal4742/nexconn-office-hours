@@ -443,3 +443,50 @@ func TestLogout(t *testing.T) {
 		t.Fatalf("logout when signed out: status %d", res.StatusCode)
 	}
 }
+
+func TestNewDepsRefusesToStartWithoutItsTwoSecrets(t *testing.T) {
+	goodKey := base64.StdEncoding.EncodeToString([]byte("0123456789abcdef0123456789abcdef"))
+	for _, k := range []string{"DATABASE_URL", "AUTH_GITHUB_ID", "AUTH_GITHUB_SECRET", "NEXT_PUBLIC_NEXCONN_APP_KEY", "NEXCONN_APP_SECRET", "NEXCONN_API_BASE_URL"} {
+		t.Setenv(k, "")
+	}
+
+	// NFR-SEC-5: no AUTH_SECRET, or one of the wrong length, and the server does not start.
+	for name, key := range map[string]string{"missing": "", "too short": base64.StdEncoding.EncodeToString([]byte("short")), "not base64": "%%%"} {
+		t.Setenv("AUTH_SECRET", key)
+		if _, err := newDeps(context.Background(), config{AppURL: testSite}); err == nil {
+			t.Errorf("AUTH_SECRET %s: newDeps started anyway", name)
+		}
+	}
+	// The Origin check and the OAuth redirect compare against APP_URL, so it must be a plain origin.
+	t.Setenv("AUTH_SECRET", goodKey)
+	for _, appURL := range []string{"", "officehours.example", "https://officehours.example/app"} {
+		if _, err := newDeps(context.Background(), config{AppURL: appURL}); err == nil {
+			t.Errorf("APP_URL %q: newDeps started anyway", appURL)
+		}
+	}
+
+	// With the two of them, the server starts; sign-in is off until the GitHub app and the
+	// database are configured.
+	d, err := newDeps(context.Background(), config{AppURL: testSite})
+	if err != nil {
+		t.Fatalf("newDeps: %v", err)
+	}
+	if d.guard == nil || d.sessions == nil || d.github != nil || d.users != nil || d.db != nil {
+		t.Fatalf("deps without optional settings = %+v", d)
+	}
+
+	t.Setenv("AUTH_GITHUB_ID", "Iv1.test-client-id")
+	t.Setenv("AUTH_GITHUB_SECRET", testClientSecret)
+	t.Setenv("DATABASE_URL", "postgres://127.0.0.1:1/db") // well formed; nothing connects yet
+	d, err = newDeps(context.Background(), config{AppURL: testSite})
+	if err != nil {
+		t.Fatalf("newDeps with everything: %v", err)
+	}
+	if d.github == nil || d.users == nil || d.db == nil {
+		t.Fatalf("deps with everything = %+v", d)
+	}
+	// The callback address GitHub is given comes from APP_URL.
+	if got := d.github.AuthorizeURL("s", "v"); !strings.Contains(got, url.QueryEscape(testSite+"/auth/github/callback")) {
+		t.Fatalf("redirect_uri is not built from APP_URL: %s", got)
+	}
+}
