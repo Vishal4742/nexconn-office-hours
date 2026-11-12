@@ -44,9 +44,9 @@ describe("sessionLight", () => {
   });
 
   it("last call and an ended session are night", () => {
-    expect(
-      sessionLight({ ...liveSession, handsClosed: true }, at(1)),
-    ).toBe("night");
+    expect(sessionLight({ ...liveSession, handsClosed: true }, at(1))).toBe(
+      "night",
+    );
     expect(sessionLight({ ...liveSession, live: false }, at(1))).toBe("night");
   });
 
