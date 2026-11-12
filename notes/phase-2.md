@@ -62,6 +62,9 @@ The ten workers ran on Fable 5.2 until the account's 5-hour limit stopped them a
 | Migration says where (lead) | #26 | `cmd/migrate` prints the variable it used and the database's host | test first; CI green | The owner's first production migration silently ran against the local database (zsh stopped reading `.env` at an unquoted `&`) |
 | Queue panel (worker 5) | #25 | the store that keeps the queue current (ping rules, one fetch at a time, one clock, NFR-PERF-1 log) and the panel in every state for members and maintainers, with the four controls that had no button (FR-QUEUE-4..9, FR-HAND-4, 7, 8, FR-SESS-5, 6, FR-FAQ-5, 6, FR-MOD-1) | 98 new web tests; CI green; looked at in `/dev/room` at 1440 and 375 px | Added `actOnQueue` so an answer about another room never becomes this room's queue; worker 6 was told to use it |
 | Public FAQ pages (worker 7) | #27 | the FAQ store (list, search, suggestions, delete) and the Go-rendered list, entry, 404 and 410 pages with link previews (FR-FAQ-3..6, FR-HAND-3) | 17 tests, 106 subtests; both searches use the indexes on 20,000 rows; CI green | Typed text stays text; only http and https become links, with `rel="noopener noreferrer nofollow"`; search text drops NUL and broken UTF-8 |
+| Sheets, room head, your-turn banner (worker 6) | #29 | the accessible `Sheet`, the four sheets with their limits and the similar answers while typing, the head with the session as its headline and the maintainer's controls, the phone tabs (queue first), the banner with "I'm here" (FR-SESS-1, 4, 6, 7, FR-HAND-1, 3, FR-FAQ-1, FR-QUEUE-5, 9) | 30 new web tests; CI green after the scan fix; looked at in `/dev/room` | Uses `actOnQueue` and `serverNow()` from the panel's store, as asked during the build |
+| Secret scan (lead) | #30 | the migration test's fake address joined at run time | all four checks read in full | #26 had been merged with a red secret scan: a `tail` of the check list hid it. Rule added to `CLAUDE.md` |
+| Landing (worker 10) | #31 | the hero's painted swath, the story hour by hour with the pinned frame, the dot clock and the dot wave from the lamp, numbers, sky band, questions, closing; dark mode on this page only (UI.md §1 v3, S1) | 26 new web tests; CI green; looked at in Chrome in dark mode | Started last on purpose, when the first workers had finished |
 
 **Seams to check later (from the workers' reports):**
 - Checked: `ProjectOfFAQ` finds deleted entries, so deleting twice answers 200.
@@ -99,3 +102,25 @@ Seen on the way: the room's head still says "No session right now" (worker 6's p
 - 17:16 The owner created the Neon database (Singapore) and connected it to project `web` with the prefix `DATABASE`, so the variable is `DATABASE_URL`.
 - 17:33 Production migrated by the owner from their own terminal (this session's safety check refused a write to production): `applied 001_init.sql`, `applied 002_queue.sql`.
 - Waiting for the eight app values in Vercel; until then the live `/api/health` answers `FUNCTION_INVOCATION_FAILED` (the server stops at start without `AUTH_SECRET`).
+
+## Two people through the whole room, locally (lead, 2026-11-12 17:48–17:53 IST)
+All ten slices merged. The owner as maintainer on `localhost:5173`, the test user "Spike B" as a member on a second origin (`127.0.0.1:5174` with its own Go server, `design/.work/two-user`). Real Nexconn, real GitHub for the owner. Sheets and buttons were used where they exist; a few refusals were checked with `fetch` from the page.
+
+| AT | What happened |
+|---|---|
+| AT-4 | Start sheet ("Thursday office hours", 45 min, Go live): the start card arrived live in both chats, the head reads "Thursday office hours, *live.*" with "Nº 2 · 45 min with @Vishal4742 · 45 min left". A second start: `409 A session is already live in this room.` |
+| AT-5 | Typing "How do I run the tests against Postgres?" in the raise sheet showed "Already answered?" with the earlier FAQ entry |
+| AT-6 | Raised from the sheet: the hand card "@spike-b raised a hand · In line" in both chats; a second hand: `409 You already have an open hand in this session.` (the 60 s wait is proven by `TestApplyWithTheRealRules`) |
+| AT-7 | Next pressed in the panel: Spike B's page showed the blue "It's your turn · @Vishal4742 is answering your question · I'm here" banner, the card turned "Being answered now" |
+| AT-10 | Spike B calling `POST /api/sessions/{id}/next`: `403 Only a maintainer of this project can do that.` |
+| AT-17 | Away with one other waiting: the hand went to the end; the room was told "@spike-b didn't answer when their turn came, so their question moved to the end of the line." |
+| AT-19 | Spike B +1'd the owner's hand (count 1, order unchanged); the owner merged Spike B's hand into the one being answered ("Merged into another question" on its card) and published through the Done sheet: the FAQ card reads "Asked by @Vishal4742 and @spike-b", the public page "asked by 2 people" and names nobody |
+| AT-8 | The FAQ card's links; the public page renders signed out (checked earlier in the one-person run) |
+| AT-18 | Last call: the head "…, *last call.*", the panel "Hands closed, 1 left", the room told "Last call: hands are closed. 1 question is left in line."; a raise: `409 Hands are closed for this session.` |
+| AT-11 | End sheet with carry-over ticked: the end card "1 answered · 1 carried over"; a new session (Nº 3) put Spike B's carried hand first ("You're next") |
+| AT-9 | Spike B's page reloaded mid-session: the same queue |
+| AT-14 (part) | The room at 375 px: tabs "Queue · Chat", queue first, no sideways scroll; the chat tab shows Chat UI at full width |
+
+Not run here: AT-15 (forged pings and cards: covered by the ping and card unit tests), AT-16 (p95 over 20 changes; one sample so far, 329 ms), AT-12 and AT-13, and everything on production (waiting for the app's variables in Vercel).
+
+Fixed after the run (#32): the phone panel showed sky without the desk (a rule left from the old band), two stale comments, the Away button's title promised "two places" when fewer than three wait, and the landing's dark mode now starts before the first paint.

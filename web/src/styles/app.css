@@ -779,16 +779,14 @@ main:focus {
   border: 0;
 }
 
-/* Below 1040px the panel has no room beside the chat: it becomes a band above it. Phones get
-   the queue as a tab of its own once there is a queue (P2). */
+/* Below 1040px the panel has no room beside the chat: the room shows one of them at a time, as
+   tabs (room.css), the queue first. */
 @media (max-width: 1039px) {
   .wide-only {
     display: none;
   }
   .room {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: auto auto minmax(0, 1fr);
-    grid-template-areas: "head" "queue" "chat";
     min-height: 420px;
     padding: 0;
   }
@@ -798,9 +796,6 @@ main:focus {
   .rh-brand .brand-name,
   .rh-brand .grow {
     display: none;
-  }
-  .rh-brand .off {
-    margin-left: auto;
   }
   /* The repo gets a line of its own, in full: a long name cut short could not be read anywhere. */
   .rh-brand {
@@ -813,7 +808,8 @@ main:focus {
     white-space: normal;
     overflow-wrap: anywhere;
   }
-  /* The band says the same thing, so the headline is kept for screen readers only. */
+  /* Space is short: the meta line and the tabs say what the headline says, so it is kept for
+     screen readers only. */
   .rh-title {
     position: absolute;
     width: 1px;
@@ -826,11 +822,6 @@ main:focus {
   .pane-queue {
     border-radius: 0;
     box-shadow: none;
-  }
-  /* A band is too short for sky and desk: it shows the sky, which is what the cards float over. */
-  .q-scene {
-    object-position: 50% 25%;
-    transform: none;
   }
   .gate-card {
     padding: 24px;

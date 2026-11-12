@@ -1,5 +1,6 @@
-/* Design tokens (docs/UI.md §1). Light only for now: dark mode for the landing and FAQ pages is a
-   P4 item, and the room stays light for good (Chat UI has no dark mode). */
+/* Design tokens (docs/UI.md §1), light. The landing's dark values live in landing.css under
+   html.land-page, the FAQ pages are rendered by Go with their own, and the room stays light for
+   good (Chat UI has no dark mode). */
 :root {
   --paper: #f7f6f2;
   --surface: #ffffff;
