@@ -153,6 +153,7 @@ var (
 
 // Repo is a repository as the signed-in user sees it.
 type Repo struct {
+	ID          int64  // stays the same when the repository is renamed or moved; a name can be taken by another
 	Owner       string // GitHub's own spelling, which may differ in case from what was asked
 	Name        string
 	Description string
@@ -173,6 +174,7 @@ func (c *Client) Repo(ctx context.Context, token, owner, name string) (Repo, err
 		return Repo{}, err
 	}
 	var reply struct {
+		ID          int64  `json:"id"`
 		Name        string `json:"name"`
 		Description string `json:"description"` // null for many repositories
 		Private     bool   `json:"private"`
@@ -200,11 +202,11 @@ func (c *Client) Repo(ctx context.Context, token, owner, name string) (Repo, err
 	default:
 		return Repo{}, fmt.Errorf("github: read repository: http %d", status)
 	}
-	if reply.Name == "" || reply.Owner.Login == "" {
+	if reply.ID == 0 || reply.Name == "" || reply.Owner.Login == "" {
 		return Repo{}, errors.New("github: read repository: no usable repository in the reply")
 	}
 	repo := Repo{
-		Owner: reply.Owner.Login, Name: reply.Name, Description: reply.Description,
+		ID: reply.ID, Owner: reply.Owner.Login, Name: reply.Name, Description: reply.Description,
 		Private: reply.Private, OwnerIsOrg: reply.Owner.Type == "Organization",
 	}
 	if reply.Permissions != nil {

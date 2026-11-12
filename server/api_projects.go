@@ -45,6 +45,9 @@ type projectStore interface {
 // errRoom marks a failure of the chat service while a room was being set up.
 var errRoom = errors.New("chat room setup failed")
 
+// errOtherRepo means the name belongs to a project that was registered for another repository.
+var errOtherRepo = errors.New("the name is registered for another repository")
+
 // groupID is the Nexconn group channel of a project's room. Project ids are random, so nobody can
 // name a room's group before the server has created it (see nexconn.CreateGroup).
 func groupID(projectID string) string { return "p" + projectID }
@@ -92,12 +95,16 @@ func (d deps) registerProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	project, created, err := d.projectFor(r.Context(), repo, u.ID)
-	if errors.Is(err, errRoom) {
+	switch {
+	case errors.Is(err, errRoom):
 		log.Printf("register %s: %v", asked, err)
 		writeJSON(w, http.StatusBadGateway, envelope{Error: "We couldn't set up the chat room. Try again in a moment."})
 		return
-	}
-	if err != nil {
+	case errors.Is(err, errOtherRepo):
+		log.Printf("register %s: refused, the name is registered for another GitHub repository", asked)
+		writeJSON(w, http.StatusConflict, envelope{Error: repo.Owner + "/" + repo.Name + " was registered here for a different GitHub repository that had this name before. This one can't take over its room."})
+		return
+	case err != nil:
 		writeError(w, err)
 		return
 	}
@@ -155,8 +162,9 @@ func (d deps) projectFor(ctx context.Context, repo github.Repo, userID string) (
 	}
 	if !found {
 		fresh := store.Project{
-			ID:    strings.ToLower(rand.Text()), // 26 random characters: nobody can guess the group's id
-			Owner: repo.Owner, Repo: repo.Name, Description: clip(repo.Description, maxDescription),
+			ID:       strings.ToLower(rand.Text()), // 26 random characters: nobody can guess the group's id
+			GitHubID: repo.ID,
+			Owner:    repo.Owner, Repo: repo.Name, Description: clip(repo.Description, maxDescription),
 		}
 		if err := d.rooms.CreateGroup(ctx, groupID(fresh.ID), clip(fresh.Owner+"/"+fresh.Repo, maxGroupName), botID); err != nil {
 			return store.Project{}, false, fmt.Errorf("%w: %v", errRoom, err)
@@ -169,6 +177,11 @@ func (d deps) projectFor(ctx context.Context, repo github.Repo, userID string) (
 		}
 		// Not created: someone registered the same repo a moment ago. Their project stands, and
 		// the caller joins it below like any second maintainer.
+	}
+	// A name can change hands: the first repo is renamed or deleted and someone makes a new one
+	// under its name. Being admin of that one must not make them a maintainer of this project.
+	if project.GitHubID != repo.ID {
+		return store.Project{}, false, errOtherRepo
 	}
 	if !project.IsMember || !project.IsMaintainer {
 		if err := d.rooms.JoinGroup(ctx, groupID(project.ID), userID); err != nil {
