@@ -1,0 +1,3 @@
+/* The landing page: the story of one session, and its dark mode. Owned by the landing page (worker 10) of the
+   parallel build (notes/phase-2-plan.md). It is loaded after app.css, so a rule here wins over
+   the rule it replaces there. */

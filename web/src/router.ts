@@ -5,6 +5,12 @@ export type Route =
   | { readonly name: "landing" }
   | { readonly name: "dashboard" }
   | { readonly name: "room"; readonly owner: string; readonly repo: string }
+  | { readonly name: "stats" }
+  | {
+      readonly name: "projectStats";
+      readonly owner: string;
+      readonly repo: string;
+    }
   | { readonly name: "notFound" };
 
 // The same patterns as the server (NFR-SEC-3). Here they only spare a request that would be refused.
@@ -20,12 +26,18 @@ export function matchRoute(pathname: string): Route {
   const path = pathname.length > 1 ? pathname.replace(/\/$/, "") : pathname;
   if (path === "/") return { name: "landing" };
   if (path === "/dashboard") return { name: "dashboard" };
+  if (path === "/stats") return { name: "stats" };
 
+  // /p/owner/repo is the room and /p/owner/repo/stats its numbers. /p/owner/repo/faq… never
+  // gets here: the Go server renders those pages.
   const parts = path.split("/");
-  const [, prefix, owner, repo] = parts;
-  const isProject =
-    parts.length === 4 && prefix === "p" && isRepoName(owner, repo);
-  return isProject ? { name: "room", owner, repo } : { name: "notFound" };
+  const [, prefix, owner, repo, page] = parts;
+  if (prefix !== "p" || !isRepoName(owner, repo)) return { name: "notFound" };
+  if (parts.length === 4) return { name: "room", owner, repo };
+  if (parts.length === 5 && page === "stats") {
+    return { name: "projectStats", owner, repo };
+  }
+  return { name: "notFound" };
 }
 
 /** What the browser tab is called on a page (NFR-A11Y-1). */
@@ -37,6 +49,10 @@ export function titleFor(route: Route): string {
       return "Your projects · Office Hours";
     case "room":
       return `${route.owner}/${route.repo} · Office Hours`;
+    case "stats":
+      return "In numbers · Office Hours";
+    case "projectStats":
+      return `${route.owner}/${route.repo} in numbers · Office Hours`;
     case "notFound":
       return "Page not found · Office Hours";
   }

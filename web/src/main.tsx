@@ -5,6 +5,12 @@ import App from "./App";
 import { reloadWhenCodeIsGone } from "./staleCode";
 import "./styles/tokens.css";
 import "./styles/app.css";
+// One file per part of the parallel build, after app.css so that their rules win.
+import "./styles/landing.css";
+import "./styles/gate.css";
+import "./styles/room.css";
+import "./styles/queue.css";
+import "./styles/stats.css";
 
 reloadWhenCodeIsGone();
 
