@@ -3,6 +3,7 @@ package github
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -25,12 +26,16 @@ type fakeGitHub struct {
 	tokenStatus int
 	userReply   string
 	userStatus  int
-	hang        chan struct{} // closed to release a hanging token endpoint
+	repoReply   string
+	repoStatus  int
+	hang        chan struct{} // closed to release a hanging token or repo endpoint
 
 	gotTokenForm url.Values
 	gotTokenURL  string
 	gotAccept    string
 	gotAuth      string
+	gotRepoPath  string // as it came over the wire, still escaped
+	gotRepoAuth  string
 }
 
 func newFakeGitHub(t *testing.T) *fakeGitHub {
@@ -38,6 +43,7 @@ func newFakeGitHub(t *testing.T) *fakeGitHub {
 	f := &fakeGitHub{
 		tokenReply: `{"access_token":"gho_fake_user_token","scope":"read:user","token_type":"bearer"}`, tokenStatus: 200,
 		userReply: `{"id":42,"login":"mia-k","name":"Mia K","avatar_url":"https://avatars.example/u/42","email":"mia@example.com"}`, userStatus: 200,
+		repoReply: repoJSON("Organization", `{"admin":true,"maintain":true,"push":true,"triage":true,"pull":true}`), repoStatus: 200,
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /login/oauth/access_token", func(w http.ResponseWriter, r *http.Request) {
@@ -57,9 +63,28 @@ func newFakeGitHub(t *testing.T) *fakeGitHub {
 		w.WriteHeader(f.userStatus)
 		io.WriteString(w, f.userReply)
 	})
+	mux.HandleFunc("GET /repos/{owner}/{repo}", func(w http.ResponseWriter, r *http.Request) {
+		if f.hang != nil {
+			<-f.hang
+		}
+		f.gotRepoPath, f.gotRepoAuth = r.URL.EscapedPath(), r.Header.Get("Authorization")
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(f.repoStatus)
+		io.WriteString(w, f.repoReply)
+	})
 	f.Server = httptest.NewServer(mux)
 	t.Cleanup(f.Close)
 	return f
+}
+
+// repoJSON is GitHub's reply for PaperPlane/Stash. An empty permissions leaves the key out.
+func repoJSON(ownerType, permissions string) string {
+	reply := `{"id":1,"name":"Stash","full_name":"PaperPlane/Stash","private":false,` +
+		`"owner":{"login":"PaperPlane","type":"` + ownerType + `"},"description":"A tiny HTTP cache."`
+	if permissions != "" {
+		reply += `,"permissions":` + permissions
+	}
+	return reply + `}`
 }
 
 func (f *fakeGitHub) client(t *testing.T) *Client {
@@ -256,4 +281,123 @@ func TestUser(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRepo(t *testing.T) {
+	ctx := context.Background()
+	const token = "gho_fake_user_token"
+
+	t.Run("FR-PROJ-1: reads GitHub's spelling, the description and the caller's rights", func(t *testing.T) {
+		f := newFakeGitHub(t)
+		f.repoReply = repoJSON("Organization", `{"admin":false,"maintain":true,"push":true,"triage":true,"pull":true}`)
+		got, err := f.client(t).Repo(ctx, token, "paperplane", "stash")
+		if err != nil {
+			t.Fatalf("Repo: %v", err)
+		}
+		want := Repo{Owner: "PaperPlane", Name: "Stash", Description: "A tiny HTTP cache.", OwnerIsOrg: true, CanMaintain: true, KnowsPermissions: true}
+		if got != want {
+			t.Fatalf("Repo = %+v, want %+v", got, want)
+		}
+		if f.gotRepoPath != "/repos/paperplane/stash" || f.gotRepoAuth != "Bearer "+token {
+			t.Fatalf("asked for %q with %q", f.gotRepoPath, f.gotRepoAuth)
+		}
+	})
+
+	t.Run("FR-PROJ-1: only admin or maintain counts", func(t *testing.T) {
+		for _, tt := range []struct {
+			name, permissions string
+			can, knows        bool
+		}{
+			{"admin", `{"admin":true,"maintain":false,"push":true,"triage":true,"pull":true}`, true, true},
+			{"maintain", `{"admin":false,"maintain":true,"push":true,"triage":true,"pull":true}`, true, true},
+			{"admin, in a reply without the maintain key", `{"admin":true,"push":true,"pull":true}`, true, true},
+			{"push only", `{"admin":false,"maintain":false,"push":true,"triage":true,"pull":true}`, false, true},
+			{"triage only", `{"admin":false,"maintain":false,"push":false,"triage":true,"pull":true}`, false, true},
+			{"pull only", `{"admin":false,"push":false,"pull":true}`, false, true},
+			{"an empty permissions object", `{}`, false, true},
+			{"A-7: no permissions key", ``, false, false},
+			{"A-7: permissions is null", `null`, false, false},
+		} {
+			f := newFakeGitHub(t)
+			f.repoReply = repoJSON("User", tt.permissions)
+			got, err := f.client(t).Repo(ctx, token, "paperplane", "stash")
+			if err != nil {
+				t.Errorf("%s: %v", tt.name, err)
+				continue
+			}
+			if got.CanMaintain != tt.can || got.KnowsPermissions != tt.knows {
+				t.Errorf("%s: CanMaintain %v, KnowsPermissions %v; want %v, %v", tt.name, got.CanMaintain, got.KnowsPermissions, tt.can, tt.knows)
+			}
+		}
+	})
+
+	t.Run("a null description is empty, a private repo is marked, a user is not an organization", func(t *testing.T) {
+		f := newFakeGitHub(t)
+		f.repoReply = `{"name":"notes","private":true,"owner":{"login":"mia-k","type":"User"},"description":null,"permissions":{"admin":true}}`
+		got, err := f.client(t).Repo(ctx, token, "mia-k", "notes")
+		if err != nil {
+			t.Fatalf("Repo: %v", err)
+		}
+		want := Repo{Owner: "mia-k", Name: "notes", Private: true, CanMaintain: true, KnowsPermissions: true}
+		if got != want {
+			t.Fatalf("Repo = %+v, want %+v", got, want)
+		}
+	})
+
+	t.Run("FR-PROJ-1: the refusals a user can do something about have their own errors", func(t *testing.T) {
+		for status, want := range map[int]error{404: ErrNotFound, 401: ErrUnauthorized, 403: ErrForbidden} {
+			f := newFakeGitHub(t)
+			f.repoStatus, f.repoReply = status, `{"message":"no"}`
+			if _, err := f.client(t).Repo(ctx, token, "paperplane", "stash"); !errors.Is(err, want) {
+				t.Errorf("http %d: err = %v, want %v", status, err, want)
+			}
+		}
+	})
+
+	for name, breakIt := range map[string]func(*fakeGitHub){
+		"a 500":                    func(f *fakeGitHub) { f.repoStatus = 500; f.repoReply = `{"message":"Server Error"}` },
+		"a 429":                    func(f *fakeGitHub) { f.repoStatus = 429; f.repoReply = `{"message":"slow down"}` },
+		"a page instead of JSON":   func(f *fakeGitHub) { f.repoReply = `<html>` },
+		"a reply without a name":   func(f *fakeGitHub) { f.repoReply = `{"owner":{"login":"PaperPlane","type":"User"}}` },
+		"a reply without an owner": func(f *fakeGitHub) { f.repoReply = `{"name":"Stash"}` },
+	} {
+		t.Run(name+" means GitHub did not answer", func(t *testing.T) {
+			f := newFakeGitHub(t)
+			breakIt(f)
+			_, err := f.client(t).Repo(ctx, token, "paperplane", "stash")
+			if err == nil || errors.Is(err, ErrNotFound) || errors.Is(err, ErrUnauthorized) || errors.Is(err, ErrForbidden) {
+				t.Fatalf("err = %v, want an error that is none of the three refusals", err)
+			}
+			if strings.Contains(err.Error(), token) {
+				t.Errorf("NFR-SEC-1: the error text contains the token: %v", err)
+			}
+		})
+	}
+
+	t.Run("a GitHub that never answers gives up after the timeout", func(t *testing.T) {
+		f := newFakeGitHub(t)
+		f.hang = make(chan struct{})
+		defer close(f.hang)
+		start := time.Now()
+		_, err := f.client(t).Repo(ctx, token, "paperplane", "stash")
+		if err == nil || errors.Is(err, ErrNotFound) || errors.Is(err, ErrUnauthorized) || errors.Is(err, ErrForbidden) {
+			t.Fatalf("err = %v, want a plain failure", err)
+		}
+		if waited := time.Since(start); waited > 3*time.Second {
+			t.Fatalf("waited %v for a hanging GitHub", waited)
+		}
+		if strings.Contains(err.Error(), token) {
+			t.Errorf("NFR-SEC-1: the timeout error contains the token: %v", err)
+		}
+	})
+
+	t.Run("NFR-SEC-3: a name can't change which address is asked", func(t *testing.T) {
+		f := newFakeGitHub(t)
+		if _, err := f.client(t).Repo(ctx, token, "paper/plane", "stash?x=1#y"); err != nil {
+			t.Fatalf("Repo: %v", err)
+		}
+		if f.gotRepoPath != "/repos/paper%2Fplane/stash%3Fx=1%23y" {
+			t.Fatalf("asked for %q: the name escaped its place in the path", f.gotRepoPath)
+		}
+	})
 }
