@@ -1,44 +1,36 @@
-import { useEffect, useState } from "react";
+import { Suspense, lazy } from "react";
 
-import { isHealthy } from "./lib/health";
+import { Header } from "./components/Header";
+import { Dashboard } from "./pages/Dashboard";
+import { Landing } from "./pages/Landing";
+import { NotFound } from "./pages/NotFound";
+import { useRoute } from "./router";
 
-type ServerState = "checking" | "up" | "down";
-
-const MESSAGE: Record<ServerState, string> = {
-  checking: "Checking the Go server…",
-  up: "The Go server is answering.",
-  down: "The Go server is not answering.",
-};
-
-async function checkServer(signal: AbortSignal): Promise<ServerState> {
-  const res = await fetch("/api/health", { signal });
-  if (!res.ok) return "down";
-  const body: unknown = await res.json();
-  return isHealthy(body) ? "up" : "down";
-}
+// P0 only: the Chat UI test page loads the Nexconn SDK on demand. It goes when the real room lands.
+const SpikePage = lazy(() => import("./spike/SpikePage"));
 
 export default function App() {
-  const [server, setServer] = useState<ServerState>("checking");
+  const route = useRoute();
 
-  // One-off check on load. P1 replaces this page, and data fetching then moves to a cache library.
-  useEffect(() => {
-    const controller = new AbortController();
-    checkServer(controller.signal)
-      .then(setServer)
-      .catch(() => {
-        if (!controller.signal.aborted) setServer("down");
-      });
-    return () => controller.abort();
-  }, []);
-
+  if (route.name === "spike") {
+    return (
+      <Suspense fallback={<p>Loading the chat…</p>}>
+        <SpikePage />
+      </Suspense>
+    );
+  }
   return (
-    <main>
-      <h1>Office Hours</h1>
-      <p>
-        Live office hours for open source projects. This is the P0 skeleton
-        page.
-      </p>
-      <p role="status">{MESSAGE[server]}</p>
-    </main>
+    <>
+      <a className="skip" href="#main">
+        Skip to the page
+      </a>
+      <Header />
+      <main id="main">
+        {route.name === "landing" && <Landing />}
+        {route.name === "dashboard" && <Dashboard />}
+        {/* The project page arrives with the room slices. */}
+        {(route.name === "room" || route.name === "notFound") && <NotFound />}
+      </main>
+    </>
   );
 }

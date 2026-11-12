@@ -65,6 +65,13 @@ jobs:
         run: npm --prefix web test
       - name: build
         run: npm --prefix web run build
+      - name: no secret in the built app
+        run: |
+          # Everything in web/dist is public. A server secret's name or a GitHub token in it is a leak.
+          if grep -rIlE 'gho_|client_secret|APP_SECRET|AUTH_SECRET' web/dist; then
+            echo "A secret-looking string is in the built web app (files above)."
+            exit 1
+          fi
 
   secrets:
     name: Secret scan

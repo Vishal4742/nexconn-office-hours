@@ -1,0 +1,24 @@
+/* Design tokens (docs/UI.md §1). Light only for now: dark mode for the landing and FAQ pages is a
+   P4 item, and the room stays light for good (Chat UI has no dark mode). */
+:root {
+  --paper: #f7f6f2;
+  --surface: #ffffff;
+  --sunken: #eeece6;
+  --ink: #14151a;
+  --muted: #6b6d76;
+  --hairline: #e3e1da;
+  --divider: #c8c4b8;
+  --blue: #0047ff;
+  --blue-hover: #0039cc;
+  --blue-ink: #ffffff;
+  --blue-wash: #eef2ff;
+  --green: #1a7a43;
+  --amber: #8f5e12;
+  --ring: 0 0 0 1px rgba(20, 21, 26, 0.08);
+  --glass: rgba(247, 246, 242, 0.78);
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --sans: "Instrument Sans", system-ui, sans-serif;
+  --serif: "Instrument Serif", Georgia, serif;
+  --mono: "Geist Mono", ui-monospace, monospace;
+  color-scheme: light;
+}
