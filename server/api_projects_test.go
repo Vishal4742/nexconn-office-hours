@@ -32,9 +32,10 @@ const (
 	pushRights     = `{"admin":false,"maintain":false,"push":true,"triage":true,"pull":true}`
 )
 
-// githubRepo is GitHub's reply for one public repository. An empty permissions leaves the key out.
+// githubRepo is GitHub's reply for one public repository, the one GitHub numbers 1001. An empty
+// permissions leaves the key out.
 func githubRepo(owner, ownerType, name, permissions string) string {
-	reply := `{"name":"` + name + `","private":false,"owner":{"login":"` + owner + `","type":"` + ownerType + `"},"description":"A tiny HTTP cache."`
+	reply := `{"id":1001,"name":"` + name + `","private":false,"owner":{"login":"` + owner + `","type":"` + ownerType + `"},"description":"A tiny HTTP cache."`
 	if permissions != "" {
 		reply += `,"permissions":` + permissions
 	}
@@ -304,6 +305,9 @@ func TestRegisterProject(t *testing.T) {
 		if a.rooms.names[group] != "PaperPlane/Stash" {
 			t.Fatalf("the room is named %q, want PaperPlane/Stash", a.rooms.names[group])
 		}
+		if got := a.projects.byRepo["paperplane/stash"].GitHubID; got != 1001 {
+			t.Fatalf("the project is tied to GitHub repository %d, want 1001", got)
+		}
 		// FR-PROJ-1: GitHub was asked about this repo with the user's own token.
 		if want := []string{"Bearer " + testUserToken + " /repos/paperplane/stash"}; !slices.Equal(a.gh.asked, want) {
 			t.Fatalf("GitHub was asked %q, want %q", a.gh.asked, want)
@@ -364,7 +368,7 @@ func TestRegisterProject(t *testing.T) {
 		const winner = "winnerwinnerwinnerwinner22"
 		// Someone else's registration lands between this request's lookup and its insert.
 		a.projects.beforeCreate = func() {
-			a.projects.byRepo[repoKey("PaperPlane", "Stash")] = store.Project{ID: winner, Owner: "PaperPlane", Repo: "Stash"}
+			a.projects.byRepo[repoKey("PaperPlane", "Stash")] = store.Project{ID: winner, GitHubID: 1001, Owner: "PaperPlane", Repo: "Stash"}
 		}
 		res, body := a.register("paperplane", "stash", a.as(t, "gh42"))
 		var p projectReply
@@ -383,8 +387,33 @@ func TestRegisterProject(t *testing.T) {
 		}
 	})
 
+	t.Run("FR-PROJ-1: a new repo that took a registered name does not get the old one's project", func(t *testing.T) {
+		a := newProjectsApp(t)
+		var first projectReply
+		_, body := a.register("paperplane", "stash", a.as(t, "gh42"))
+		decode(t, body, &first)
+		*a.events = nil
+
+		// The first repo was renamed or deleted. Someone made a new one under its name, and is of
+		// course its admin: same name, another id.
+		a.gh.reply = strings.Replace(githubRepo("PaperPlane", "Organization", "Stash", adminRights), `"id":1001`, `"id":2002`, 1)
+		res, body := a.register("paperplane", "stash", a.as(t, "gh7"))
+		refused(t, "another repo under the name", res, body, 409, "different GitHub repository")
+		if len(*a.events) != 0 {
+			t.Errorf("the refusal still did %q", *a.events)
+		}
+		if p := a.projects.seenBy(a.projects.byRepo["paperplane/stash"], "gh7"); p.IsMaintainer || p.IsMember {
+			t.Errorf("gh7 became %+v of a project that belongs to another repository", p)
+		}
+		// The first repository's maintainer is not locked out by it.
+		a.gh.reply = githubRepo("PaperPlane", "Organization", "Stash", adminRights)
+		if res, body := a.register("paperplane", "stash", a.as(t, "gh42")); res.StatusCode != 200 {
+			t.Errorf("the real maintainer registering again: status %d body %s", res.StatusCode, body)
+		}
+	})
+
 	t.Run("FR-PROJ-1: who may register, and what the others are told", func(t *testing.T) {
-		private := `{"name":"notes","private":true,"owner":{"login":"mia-k","type":"User"},"description":null,"permissions":` + adminRights + `}`
+		private := `{"id":1001,"name":"notes","private":true,"owner":{"login":"mia-k","type":"User"},"description":null,"permissions":` + adminRights + `}`
 		for _, tt := range []struct {
 			name   string
 			status int // GitHub's
