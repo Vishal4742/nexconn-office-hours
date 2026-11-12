@@ -28,7 +28,8 @@ type fakeGitHub struct {
 	userStatus  int
 	repoReply   string
 	repoStatus  int
-	hang        chan struct{} // closed to release a hanging token or repo endpoint
+	repoHeader  map[string]string // extra headers on the repo reply
+	hang        chan struct{}     // closed to release a hanging token or repo endpoint
 
 	gotTokenForm url.Values
 	gotTokenURL  string
@@ -69,6 +70,9 @@ func newFakeGitHub(t *testing.T) *fakeGitHub {
 		}
 		f.gotRepoPath, f.gotRepoAuth = r.URL.EscapedPath(), r.Header.Get("Authorization")
 		w.Header().Set("Content-Type", "application/json")
+		for k, v := range f.repoHeader {
+			w.Header().Set(k, v)
+		}
 		w.WriteHeader(f.repoStatus)
 		io.WriteString(w, f.repoReply)
 	})
@@ -351,6 +355,26 @@ func TestRepo(t *testing.T) {
 			if _, err := f.client(t).Repo(ctx, token, "paperplane", "stash"); !errors.Is(err, want) {
 				t.Errorf("http %d: err = %v, want %v", status, err, want)
 			}
+		}
+	})
+
+	t.Run("a 403 that is a rate limit is not a refusal of access", func(t *testing.T) {
+		for name, header := range map[string]map[string]string{
+			"Retry-After":           {"Retry-After": "30"},
+			"X-RateLimit-Remaining": {"X-RateLimit-Remaining": "0"},
+		} {
+			f := newFakeGitHub(t)
+			f.repoStatus, f.repoReply, f.repoHeader = 403, `{"message":"You have exceeded a rate limit."}`, header
+			_, err := f.client(t).Repo(ctx, token, "paperplane", "stash")
+			if err == nil || errors.Is(err, ErrForbidden) || errors.Is(err, ErrNotFound) || errors.Is(err, ErrUnauthorized) {
+				t.Errorf("403 with %s: err = %v, want a plain failure to retry", name, err)
+			}
+		}
+		// Rate-limit headers on a 403 that still has requests left say nothing.
+		f := newFakeGitHub(t)
+		f.repoStatus, f.repoReply, f.repoHeader = 403, `{"message":"no"}`, map[string]string{"X-RateLimit-Remaining": "4999"}
+		if _, err := f.client(t).Repo(ctx, token, "paperplane", "stash"); !errors.Is(err, ErrForbidden) {
+			t.Errorf("403 with requests left: err = %v, want ErrForbidden", err)
 		}
 	})
 

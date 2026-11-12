@@ -62,6 +62,19 @@ func TestCreateProject(t *testing.T) {
 		t.Fatalf("after the second registration: %d projects, %d maintainers, %d members; want 1 of each", projects, maintainers, members)
 	}
 
+	// FR-PROJ-2: the same repository under a new name (it was renamed on GitHub) is still that one
+	// project. GitHub's id says so.
+	renamed, created, err := s.CreateProject(ctx, Project{ID: "dddd", GitHubID: 1001, Owner: "paperplane", Repo: "cache"}, "gh1")
+	if err != nil || created {
+		t.Fatalf("CreateProject for a renamed repo = created %v, err %v; want the existing project", created, err)
+	}
+	if renamed.ID != "aaaa" || renamed.Repo != "Stash" || !renamed.IsMaintainer {
+		t.Fatalf("CreateProject for a renamed repo = %+v, want project aaaa under its registered name", renamed)
+	}
+	if n := count(t, pool, `SELECT count(*) FROM projects`); n != 1 {
+		t.Fatalf("%d projects after registering a renamed repo, want 1", n)
+	}
+
 	// A session can outlive its user row (an account deleted here, a database reset in development).
 	// That must be told apart from a broken database: the person only has to sign in again.
 	_, _, err = s.CreateProject(ctx, Project{ID: "cccc", GitHubID: 3003, Owner: "ghost", Repo: "town"}, "gh404")
@@ -288,5 +301,40 @@ func TestAddMemberAndMembers(t *testing.T) {
 
 	if err := s.AddMember(ctx, "aaaa", "gh404"); !errors.Is(err, ErrUnknownUser) {
 		t.Fatalf("AddMember for a user with no row: err = %v, want ErrUnknownUser", err)
+	}
+}
+
+func TestProjectOf(t *testing.T) {
+	pool := testDB(t)
+	people(t, pool)
+	s, ctx := New(pool), context.Background()
+	for _, p := range []Project{
+		{ID: "aaaa", GitHubID: 1001, Owner: "PaperPlane", Repo: "Stash"},
+		{ID: "bbbb", GitHubID: 2002, Owner: "paperplane", Repo: "cache"},
+	} {
+		if _, _, err := s.CreateProject(ctx, p, "gh1"); err != nil {
+			t.Fatalf("CreateProject(%s): %v", p.ID, err)
+		}
+	}
+
+	for _, tt := range []struct {
+		name        string
+		githubID    int64
+		owner, repo string
+		wantID      string // "" for not found
+	}{
+		{"by GitHub's id and its name", 1001, "paperplane", "stash", "aaaa"},
+		{"by GitHub's id under a name nobody registered: the repo was renamed", 1001, "paperplane", "vault", "aaaa"},
+		{"by name when GitHub's id is new here: the name belongs to another repo's project", 3003, "PAPERPLANE", "STASH", "aaaa"},
+		{"the id wins over the name: a renamed repo that now carries another project's old name", 2002, "paperplane", "stash", "bbbb"},
+		{"neither", 3003, "paperplane", "vault", ""},
+	} {
+		got, found, err := s.ProjectOf(ctx, tt.githubID, tt.owner, tt.repo, "gh1")
+		if err != nil || found != (tt.wantID != "") || got.ID != tt.wantID {
+			t.Errorf("%s: project %q, found %v, err %v; want %q", tt.name, got.ID, found, err, tt.wantID)
+		}
+		if found && (!got.IsMember || !got.IsMaintainer) {
+			t.Errorf("%s: the registrant's role is missing: %+v", tt.name, got)
+		}
 	}
 }

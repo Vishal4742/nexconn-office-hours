@@ -319,6 +319,23 @@ func TestCallbackSignsTheUserIn(t *testing.T) {
 	}
 }
 
+func TestNobodyIsCalledLikeTheBot(t *testing.T) {
+	// A GitHub name is free text. In the chat, someone called "Office Hours" would look like the
+	// sender of the cards, so that one name falls back to the login.
+	for _, name := range []string{"Office Hours", "  office hours ", "OFFICE HOURS"} {
+		a := newAuthApp(t)
+		a.gh.userReply = `{"id":7,"login":"quiet-dev","name":"` + name + `","avatar_url":""}`
+		res := a.signIn(t, "")
+		var u session.User
+		if err := a.codec.Open(session.Cookie, cookieNamed(res, session.Cookie).Value, &u); err != nil {
+			t.Fatalf("open session: %v", err)
+		}
+		if u.Name != "quiet-dev" || len(a.users.saved) != 1 || a.users.saved[0].Name != "quiet-dev" {
+			t.Errorf("GitHub name %q: session %q, saved %+v; want the login", name, u.Name, a.users.saved)
+		}
+	}
+}
+
 func TestCallbackWithoutANameUsesTheLogin(t *testing.T) {
 	a := newAuthApp(t)
 	a.gh.userReply = `{"id":7,"login":"quiet-dev","name":null,"avatar_url":""}`
@@ -511,6 +528,11 @@ func TestNewDepsRefusesToStartWithoutItsTwoSecrets(t *testing.T) {
 	if d.guard == nil || d.sessions == nil || d.github != nil || d.users != nil || d.db != nil {
 		t.Fatalf("deps without optional settings = %+v", d)
 	}
+	// These are interfaces: a nil pointer put into one would not compare equal to nil, and the
+	// "not set up" answers of the routes would silently stop working.
+	if d.projects != nil || d.rooms != nil || d.tokens != nil {
+		t.Fatalf("an optional part is not a nil interface: projects %v, rooms %v, tokens %v", d.projects != nil, d.rooms != nil, d.tokens != nil)
+	}
 
 	t.Setenv("AUTH_GITHUB_ID", "Iv1.test-client-id")
 	t.Setenv("AUTH_GITHUB_SECRET", testClientSecret)
@@ -519,8 +541,14 @@ func TestNewDepsRefusesToStartWithoutItsTwoSecrets(t *testing.T) {
 	if err != nil {
 		t.Fatalf("newDeps with everything: %v", err)
 	}
-	if d.github == nil || d.users == nil || d.db == nil {
+	if d.github == nil || d.users == nil || d.db == nil || d.projects == nil {
 		t.Fatalf("deps with everything = %+v", d)
+	}
+	t.Setenv("NEXT_PUBLIC_NEXCONN_APP_KEY", "pk_test")
+	t.Setenv("NEXCONN_APP_SECRET", "secret_test")
+	t.Setenv("NEXCONN_API_BASE_URL", "https://api.example")
+	if d, err = newDeps(context.Background(), config{AppURL: testSite}); err != nil || d.rooms == nil || d.tokens == nil {
+		t.Fatalf("deps with Nexconn configured: rooms %v, tokens %v, err %v", d.rooms != nil, d.tokens != nil, err)
 	}
 	// The callback address GitHub is given comes from APP_URL.
 	if got := d.github.AuthorizeURL("s", "v"); !strings.Contains(got, url.QueryEscape(testSite+"/auth/github/callback")) {

@@ -208,3 +208,21 @@ func TestRoles(t *testing.T) {
 		t.Fatalf("with a failing store: %v (status %d), want an internal error", err, status(err))
 	}
 }
+
+func TestRolesWithoutAStoreRefuseInsteadOfCrashing(t *testing.T) {
+	// The server starts without a database (sign-in is then off). A role check must still answer:
+	// with an internal error, never with a panic and never by letting someone through.
+	g, _ := newGuard(t, nil)
+	for name, check := range map[string]func(context.Context, session.User, string) error{"Member": g.Member, "Maintainer": g.Maintainer} {
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					t.Errorf("%s without a role store panicked: %v", name, r)
+				}
+			}()
+			if err := check(context.Background(), session.User{ID: "gh1"}, "proj1"); err == nil || status(err) != -1 {
+				t.Errorf("%s without a role store: %v (status %d), want an internal error", name, err, status(err))
+			}
+		}()
+	}
+}

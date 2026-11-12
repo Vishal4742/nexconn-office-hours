@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 // fakeDB stands in for the connection pool.
@@ -119,9 +120,15 @@ type fakeIssuer struct {
 	err     error
 	gotID   string
 	gotName string
+	stuck   chan struct{} // when set, IssueToken never answers; closed once its context is cancelled
 }
 
-func (f *fakeIssuer) IssueToken(_ context.Context, userID, name string) (string, error) {
+func (f *fakeIssuer) IssueToken(ctx context.Context, userID, name string) (string, error) {
+	if f.stuck != nil {
+		<-ctx.Done()
+		close(f.stuck)
+		return "", ctx.Err()
+	}
 	f.gotID, f.gotName = userID, name
 	return "tok_" + userID, f.err
 }
@@ -156,5 +163,36 @@ func TestThePhaseZeroTestRoutesAreGone(t *testing.T) {
 		if strings.Contains(rec.Body.String(), "tok_") || len(rec.Result().Cookies()) != 0 {
 			t.Errorf("GET %s still hands out a token or a cookie: %q", path, rec.Body.String())
 		}
+	}
+}
+
+func TestEveryRequestHasADeadline(t *testing.T) {
+	// A database or a chat service that never answers must not hold a request open for as long
+	// as the platform allows: the request is given up on, and what it was waiting for is told so.
+	issuer := &fakeIssuer{stuck: make(chan struct{})}
+	mux, cookie := tokenApp(t, issuer)
+	handler := withDeadline(mux, 50*time.Millisecond)
+
+	r := httptest.NewRequest("POST", "/api/nexconn/token", strings.NewReader(`{}`))
+	r.Header.Set("Origin", testSite)
+	r.Header.Set("Content-Type", "application/json")
+	r.AddCookie(cookie)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, r)
+
+	if rec.Code != http.StatusServiceUnavailable || !strings.Contains(rec.Body.String(), `"ok":false`) || !strings.Contains(rec.Body.String(), "too long") {
+		t.Fatalf("status %d body %q, want 503 with our own sentence", rec.Code, rec.Body.String())
+	}
+	select {
+	case <-issuer.stuck:
+	case <-time.After(2 * time.Second):
+		t.Fatal("the call the request was waiting on was never cancelled")
+	}
+
+	// A request that answers in time is passed through untouched.
+	rec = httptest.NewRecorder()
+	handler.ServeHTTP(rec, httptest.NewRequest("GET", "/api/health", nil))
+	if rec.Code != 200 || !strings.Contains(rec.Body.String(), `"ok":true`) || rec.Header().Get("Content-Type") != "application/json; charset=utf-8" {
+		t.Fatalf("a fast request: status %d, type %q, body %q", rec.Code, rec.Header().Get("Content-Type"), rec.Body.String())
 	}
 }
