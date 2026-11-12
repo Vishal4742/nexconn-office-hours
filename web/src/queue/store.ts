@@ -40,6 +40,8 @@ let state: QueueState = { status: "loading" };
 const listeners = new Set<() => void>();
 const clock = makeClock(() => Date.now());
 let latencies: readonly number[] = [];
+/** How long to wait before downloading the chat's code again after it failed. */
+const RETRY_MS = 5_000;
 
 function set(next: QueueState): void {
   state = next;
@@ -93,34 +95,40 @@ function listen(room: WatchedRoom, keeper: Keeper): () => void {
 
   let isListening = true;
   let stopClient = () => {};
-  loadClient().then(
-    (client) => {
-      if (!isListening) return;
-      const stopMessages = client.onMessages((messages) =>
-        messages.forEach((message) => {
-          const ping = readPing(message, room.groupId);
-          if (ping) keeper.ping(ping);
-        }),
-      );
-      let wasConnected = client.getConnection().status === "connected";
-      const stopConnection = client.subscribe(() => {
-        const isConnected = client.getConnection().status === "connected";
-        if (isConnected && !wasConnected) keeper.refresh();
-        wasConnected = isConnected;
-      });
-      stopClient = () => {
-        stopMessages();
-        stopConnection();
-      };
-    },
-    () => {
-      // The chat's code could not be downloaded: the connection banner says so and offers to try
-      // again. The queue still loads on focus and after each action of this page.
-    },
-  );
+  let retry: ReturnType<typeof setTimeout> | undefined;
+  const attach = (isLate: boolean) =>
+    loadClient().then(
+      (client) => {
+        if (!isListening) return;
+        const stopMessages = client.onMessages((messages) =>
+          messages.forEach((message) => {
+            const ping = readPing(message, room.groupId);
+            if (ping) keeper.ping(ping);
+          }),
+        );
+        let wasConnected = client.getConnection().status === "connected";
+        const stopConnection = client.subscribe(() => {
+          const isConnected = client.getConnection().status === "connected";
+          if (isConnected && !wasConnected) keeper.refresh();
+          wasConnected = isConnected;
+        });
+        stopClient = () => {
+          stopMessages();
+          stopConnection();
+        };
+        if (isLate) keeper.refresh(); // pings may have been missed meanwhile
+      },
+      () => {
+        // The chat's code could not be downloaded; the connection banner says so. Without it no
+        // ping arrives, and a page in front would never learn of a change: so ask again.
+        if (isListening) retry = setTimeout(() => attach(true), RETRY_MS);
+      },
+    );
+  void attach(false);
 
   return () => {
     isListening = false;
+    clearTimeout(retry);
     window.removeEventListener("focus", onFocus);
     document.removeEventListener("visibilitychange", onVisible);
     stopClient();
@@ -172,6 +180,17 @@ export function watchedRoom(): WatchedRoom | null {
  */
 export function acceptQueue(queue: Queue): void {
   current?.keeper.accept(queue);
+}
+
+/**
+ * Makes a call that answers with the queue, and gives the answer to acceptQueue unless the page
+ * moved to another room meanwhile. Session ids are global, so another room's queue could look
+ * newer than this room's and keep its real queue out.
+ */
+export async function actOnQueue(call: () => Promise<Queue>): Promise<void> {
+  const groupId = current?.room.groupId;
+  const queue = await call();
+  if (current?.room.groupId === groupId) acceptQueue(queue);
 }
 
 /** A hand of the watched room's session by id, or null when the queue does not hold it. */

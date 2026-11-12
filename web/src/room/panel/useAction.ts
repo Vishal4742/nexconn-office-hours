@@ -12,8 +12,8 @@ export type Doing =
 
 /**
  * One control's calls to the server: busy while a call is on its way, then what the server
- * refused, or the sentence given for a success. A call that changes the queue gives the server's
- * answer to acceptQueue itself.
+ * refused, or the sentence given for a success. A call that changes the queue goes through
+ * actOnQueue (queue/store.ts), which hands the server's answer to the store.
  */
 export function useAction() {
   const [doing, setDoing] = useState<Doing>({ status: "idle" });
