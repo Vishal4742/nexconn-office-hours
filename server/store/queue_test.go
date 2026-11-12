@@ -381,6 +381,15 @@ func TestQueueSnapshot(t *testing.T) {
 		}
 	})
 
+	t.Run("FR-SESS-5: a planned time that has passed is no plan any more", func(t *testing.T) {
+		pool := testDB(t)
+		people(t, pool)
+		mustExec(t, pool, `INSERT INTO projects (id, github_id, owner, repo, created_by, next_session_at) VALUES ('aaaa', 11, 'PaperPlane', 'Stash', 'gh1', now() - interval '1 minute')`)
+		if snap, err := New(pool).Queue(ctx, "aaaa"); err != nil || !snap.NextSessionAt.IsZero() {
+			t.Fatalf("NextSessionAt = %v, %v; want none: the session that was planned has begun or was missed", snap.NextSessionAt, err)
+		}
+	})
+
 	t.Run("FR-QUEUE-1, FR-QUEUE-4: the live session with its hands in the queue's order", func(t *testing.T) {
 		s, pool, session := queueDB(t)
 		mustExec(t, pool, `UPDATE users SET name = 'Mia Kowalski', avatar_url = 'https://avatars.example/1' WHERE id = 'gh1'`)
