@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { Suspense, lazy, useEffect, useRef } from "react";
 
 import { useAuth } from "./auth";
 import { ConnectionBanner } from "./components/ConnectionBanner";
@@ -10,11 +10,19 @@ import { Room } from "./pages/Room";
 import { Stats } from "./pages/Stats";
 import { titleFor, useRoute } from "./router";
 
+// Development only: the room's parts in every state, from fixtures. import.meta.env.DEV is false
+// in a production build, so neither the page nor its file is part of one.
+const DevRoom = import.meta.env.DEV
+  ? lazy(() =>
+      import("./pages/DevRoom").then((page) => ({ default: page.DevRoom })),
+    )
+  : null;
+
 export default function App() {
   const route = useRoute();
   const auth = useAuth();
   // The room fills the window and has a top row of its own (docs/UI.md S3).
-  const isRoom = route.name === "room";
+  const isRoom = route.name === "room" || route.name === "devRoom";
   const mainRef = useRef<HTMLElement>(null);
   const shownPath = useRef(window.location.pathname);
 
@@ -50,6 +58,11 @@ export default function App() {
             key={`${route.owner}/${route.repo}`.toLowerCase()}
             repo={{ owner: route.owner, repo: route.repo }}
           />
+        )}
+        {route.name === "devRoom" && DevRoom && (
+          <Suspense fallback={null}>
+            <DevRoom />
+          </Suspense>
         )}
         {route.name === "notFound" && <NotFound />}
       </main>
