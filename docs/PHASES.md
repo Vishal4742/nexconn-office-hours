@@ -8,7 +8,7 @@ Status: ⬜ not started · 🟨 in progress · ✅ closed (date). Bug severity: 
 | Phase | Dates | Goal | Status |
 |---|---|---|---|
 | P0 | Nov 12–13 | Accounts in the right order, spike confirms §8 assumptions, deployed hello-world room | 🟨 |
-| P1 | Nov 13–14 | Sign-in, projects, rooms (Chat UI + profiles) | ⬜ |
+| P1 | Nov 13–14 | Sign-in, projects, rooms (Chat UI + profiles) | 🟨 built 2026-11-12; the gate waits for the first deployment |
 | P2 | Nov 14–16 | Sessions, hands, live queue | ⬜ |
 | P3 | Nov 16–17 | FAQ entries, public pages, suggestions, issue links | ⬜ |
 | P4 | Nov 17–19 10:00 | Polish, stats, stretch if time → **freeze** | ⬜ |

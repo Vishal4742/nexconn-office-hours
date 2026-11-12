@@ -100,6 +100,9 @@ Once there is a deployment, every merged slice gets a smoke check on it: `/api/h
 ## Done means (per slice, from `docs/WORKFLOW.md` §6)
 SRS ids implemented with passing tests named after them · gofmt, vet, Go tests with none skipped in CI, web lint, typecheck, tests and build pass · every mutation goes through `guard` · no secret in code, logs or the bundle · merged with CI green · its AT steps noted in `notes/phase-1.md`, on production once there is one.
 
+## Phase-close reviews (2026-11-12)
+Security, Go, web and ponytail reviews of the whole phase; results and fixes in `notes/phase-1.md`. Carried forward: **P2's plan must re-check a maintainer's GitHub rights** before a maintainer action counts (at session start) · P5: the `__Host-` cookie prefix, a way to release a name held by a deleted repo's project, following a repo's rename · on the first deployment: the response headers of `vercel.json`.
+
 ## Review (plan-reviewer agent, 2026-11-12)
 Must-fix, all applied: a way back to the room after sign-in (`next`, slice 3) · the whole SDK start moves to 4b, because Chat UI can't take cards after `ready()` · GitHub's `name` can be null (display-name rule) · "names and avatars show" gets a testable exit check and hooks that answer from memory.
 Should-fix, applied: provision first (decision 3) · the sign-in paths users really hit (Cancel, expired state, GitHub down, wrong host) · cookie purpose binding and lifetime · no skipped tests in CI · tests for the token endpoint, more permission cases, a bundle check · slices 4 and 6 split, with the fact-finding before 4b · deployment date and region.
