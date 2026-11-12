@@ -97,7 +97,7 @@ func (c *Client) Exchange(ctx context.Context, code, verifier string) (string, e
 		AccessToken string `json:"access_token"`
 		Error       string `json:"error"` // GitHub reports a bad code with HTTP 200 and this field
 	}
-	status, err := c.do(req, &reply)
+	status, _, err := c.do(req, &reply)
 	if err != nil {
 		return "", fmt.Errorf("github: token exchange: %w", err)
 	}
@@ -133,7 +133,7 @@ func (c *Client) User(ctx context.Context, token string) (User, error) {
 		return User{}, err
 	}
 	var u User
-	status, err := c.do(req, &u)
+	status, _, err := c.do(req, &u)
 	if err != nil {
 		return User{}, fmt.Errorf("github: read user: %w", err)
 	}
@@ -187,7 +187,7 @@ func (c *Client) Repo(ctx context.Context, token, owner, name string) (Repo, err
 			Maintain bool `json:"maintain"`
 		} `json:"permissions"`
 	}
-	status, err := c.do(req, &reply)
+	status, header, err := c.do(req, &reply)
 	if err != nil {
 		return Repo{}, fmt.Errorf("github: read repository: %w", err)
 	}
@@ -198,6 +198,11 @@ func (c *Client) Repo(ctx context.Context, token, owner, name string) (Repo, err
 	case http.StatusUnauthorized:
 		return Repo{}, ErrUnauthorized
 	case http.StatusForbidden:
+		// GitHub also answers 403 when a rate limit is hit. That says nothing about access to the
+		// repository: the caller should try again, not go and ask an organization's owner.
+		if header.Get("Retry-After") != "" || header.Get("X-RateLimit-Remaining") == "0" {
+			return Repo{}, errors.New("github: read repository: rate limited")
+		}
 		return Repo{}, ErrForbidden
 	default:
 		return Repo{}, fmt.Errorf("github: read repository: http %d", status)
@@ -229,16 +234,16 @@ func (c *Client) apiRequest(ctx context.Context, token, path string) (*http.Requ
 
 // do sends the request and decodes a JSON reply into out. A reply that is not JSON leaves out
 // untouched and is not an error by itself: the caller judges by status and content.
-func (c *Client) do(req *http.Request, out any) (int, error) {
+func (c *Client) do(req *http.Request, out any) (int, http.Header, error) {
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return 0, err
+		return 0, nil, err
 	}
 	defer resp.Body.Close()
 	body, err := io.ReadAll(io.LimitReader(resp.Body, maxReply))
 	if err != nil {
-		return resp.StatusCode, err
+		return resp.StatusCode, resp.Header, err
 	}
 	_ = json.Unmarshal(body, out) // see the comment above
-	return resp.StatusCode, nil
+	return resp.StatusCode, resp.Header, nil
 }

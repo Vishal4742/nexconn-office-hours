@@ -31,21 +31,17 @@ type rowQuerier interface {
 	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
 }
 
-// ProjectByRepo finds the project of a repository, in any letter case (FR-PROJ-2), and says what
-// viewerID is in it. An empty viewerID is a signed-out visitor.
-func (s *Store) ProjectByRepo(ctx context.Context, owner, repo, viewerID string) (Project, bool, error) {
-	return projectByRepo(ctx, s.pool, owner, repo, viewerID)
-}
+// projectSelect reads a project as the user $1 sees it. An empty $1 is a signed-out visitor.
+const projectSelect = `
+	SELECT p.id, p.github_id, p.owner, p.repo, p.description,
+	       EXISTS (SELECT 1 FROM members m WHERE m.project_id = p.id AND m.user_id = $1),
+	       EXISTS (SELECT 1 FROM maintainers t WHERE t.project_id = p.id AND t.user_id = $1)
+	FROM projects p `
 
-func projectByRepo(ctx context.Context, q rowQuerier, owner, repo, viewerID string) (Project, bool, error) {
+// scanProject reads the one row of a projectSelect query; no row is "not found", not an error.
+func scanProject(row pgx.Row) (Project, bool, error) {
 	var p Project
-	err := q.QueryRow(ctx, `
-		SELECT p.id, p.github_id, p.owner, p.repo, p.description,
-		       EXISTS (SELECT 1 FROM members m WHERE m.project_id = p.id AND m.user_id = $3),
-		       EXISTS (SELECT 1 FROM maintainers t WHERE t.project_id = p.id AND t.user_id = $3)
-		FROM projects p
-		WHERE lower(p.owner) = lower($1::text) AND lower(p.repo) = lower($2::text)`,
-		owner, repo, viewerID).Scan(&p.ID, &p.GitHubID, &p.Owner, &p.Repo, &p.Description, &p.IsMember, &p.IsMaintainer)
+	err := row.Scan(&p.ID, &p.GitHubID, &p.Owner, &p.Repo, &p.Description, &p.IsMember, &p.IsMaintainer)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Project{}, false, nil
 	}
@@ -53,6 +49,29 @@ func projectByRepo(ctx context.Context, q rowQuerier, owner, repo, viewerID stri
 		return Project{}, false, fmt.Errorf("store: find project: %w", err)
 	}
 	return p, true, nil
+}
+
+// ProjectByRepo finds a project by the name it is registered under, in any letter case, and says
+// what viewerID is in it. This is how pages find a project: by the address they were asked for.
+func (s *Store) ProjectByRepo(ctx context.Context, owner, repo, viewerID string) (Project, bool, error) {
+	return scanProject(s.pool.QueryRow(ctx, projectSelect+
+		`WHERE lower(p.owner) = lower($2::text) AND lower(p.repo) = lower($3::text)`,
+		viewerID, owner, repo))
+}
+
+// ProjectOf finds the project of a GitHub repository (FR-PROJ-2): the one registered for this
+// repository id, whatever name it has here, or else the one that holds this name. In the second
+// case its GitHubID differs from the one asked for: the name belongs to another repository.
+func (s *Store) ProjectOf(ctx context.Context, githubID int64, owner, repo, viewerID string) (Project, bool, error) {
+	return projectOf(ctx, s.pool, githubID, owner, repo, viewerID)
+}
+
+func projectOf(ctx context.Context, q rowQuerier, githubID int64, owner, repo, viewerID string) (Project, bool, error) {
+	return scanProject(q.QueryRow(ctx, projectSelect+
+		`WHERE p.github_id = $2 OR (lower(p.owner) = lower($3::text) AND lower(p.repo) = lower($4::text))
+		 ORDER BY (p.github_id = $2) DESC
+		 LIMIT 1`,
+		viewerID, githubID, owner, repo))
 }
 
 // addMaintainerSQL makes a user a maintainer and a member in one statement, so both rows exist or
@@ -64,9 +83,10 @@ const addMaintainerSQL = `
 	INSERT INTO members (project_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`
 
 // CreateProject records a new project with creatorID as its first maintainer and member
-// (FR-PROJ-2). If the repository is registered already it writes nothing and returns that project
-// as creatorID sees it, with created false. Of two registrations at the same moment one wins,
-// and the other learns the winner's project: the unique index on the repository's name decides.
+// (FR-PROJ-2). If the repository is registered already, or its name is taken, it writes nothing
+// and returns the project that is in the way (see ProjectOf) with created false. Of two
+// registrations at the same moment one wins and the other learns the winner's project: the
+// unique indexes on the repository's id and on its name decide.
 func (s *Store) CreateProject(ctx context.Context, p Project, creatorID string) (project Project, created bool, err error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -76,7 +96,7 @@ func (s *Store) CreateProject(ctx context.Context, p Project, creatorID string) 
 
 	tag, err := tx.Exec(ctx, `
 		INSERT INTO projects (id, github_id, owner, repo, description, created_by) VALUES ($1, $2, $3, $4, $5, $6)
-		ON CONFLICT (lower(owner), lower(repo)) DO NOTHING`,
+		ON CONFLICT DO NOTHING`,
 		p.ID, p.GitHubID, p.Owner, p.Repo, p.Description, creatorID)
 	if err != nil {
 		return Project{}, false, unknownUserOr("create project", err)
@@ -84,7 +104,7 @@ func (s *Store) CreateProject(ctx context.Context, p Project, creatorID string) 
 	if tag.RowsAffected() == 0 {
 		// Read in this transaction: the pool is small, and a second connection per waiting
 		// request could use it up.
-		existing, found, err := projectByRepo(ctx, tx, p.Owner, p.Repo, creatorID)
+		existing, found, err := projectOf(ctx, tx, p.GitHubID, p.Owner, p.Repo, creatorID)
 		if err != nil {
 			return Project{}, false, err
 		}

@@ -146,6 +146,16 @@ func faqPlaceholder(w http.ResponseWriter, r *http.Request) {
 		html.EscapeString(owner+"/"+repo), html.EscapeString(what))
 }
 
+// requestDeadline bounds every request. The slowest honest one (registering a repo: GitHub, three
+// calls to Nexconn, Postgres) stays well under it; one that waits on something stuck does not.
+const requestDeadline = 25 * time.Second
+
+// withDeadline gives up on a request that takes too long. Its context is cancelled, so whatever
+// it was waiting on is told to stop, and the caller gets a sentence in our own envelope.
+func withDeadline(h http.Handler, limit time.Duration) http.Handler {
+	return http.TimeoutHandler(h, limit, `{"ok":false,"error":"The server took too long. Try again in a moment."}`)
+}
+
 // listenAddr honours $PORT (Vercel sets it) and falls back to 8080 for local dev.
 func listenAddr() string {
 	if port := os.Getenv("PORT"); port != "" {
@@ -231,7 +241,7 @@ func main() {
 	}
 	srv := &http.Server{
 		Addr:              listenAddr(),
-		Handler:           newMux(cfg, d),
+		Handler:           withDeadline(newMux(cfg, d), requestDeadline),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 	log.Printf("office hours server listening on %s", srv.Addr)
