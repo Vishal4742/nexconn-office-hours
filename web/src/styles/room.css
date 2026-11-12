@@ -1,3 +1,515 @@
 /* The room's head with its controls and tabs, the your-turn banner and the sheets. Owned by the sheets and the room's head (worker 6) of the
    parallel build (notes/phase-2-plan.md). It is loaded after app.css, so a rule here wins over
-   the rule it replaces there. */
+   the rule it replaces there. Values come from the approved demo and docs/UI.md §7. */
+
+/* ---------- the room's head ---------- */
+.rh-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: 8px;
+  font: 500 12px/16px var(--mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--blue);
+}
+.rh-live[data-state="lastCall"] {
+  color: var(--amber);
+}
+.rh-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: currentColor;
+  animation: rh-breathe 2.4s var(--ease) infinite;
+}
+.rh-live[data-state="lastCall"] .rh-dot {
+  animation: none;
+}
+/* The title gives way to an ellipsis; the state word after it never does. */
+.rh-title {
+  display: flex;
+  align-items: baseline;
+  gap: 0.25em;
+}
+.rh-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rh-title .serif {
+  flex: none;
+}
+.rh-skel {
+  display: block;
+  width: min(420px, 80%);
+  height: 32px;
+  margin-block: 4px;
+  border-radius: 8px;
+  background: var(--sunken);
+  animation: sk 1.2s ease-in-out infinite;
+}
+/* One mono line of the session's real state, a maintainer's controls right after it. */
+.rh-session {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  min-width: 0;
+  margin-top: 8px;
+}
+.rh-meta {
+  min-width: 0;
+  font: 400 12px/16px var(--mono);
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rh-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.rh-session .err {
+  flex-basis: 100%;
+}
+.rh-tabs {
+  display: none;
+  gap: 4px;
+  margin-top: 8px;
+}
+.rh-tabs button {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 8px;
+  border-radius: 999px;
+  font-weight: 600;
+  color: var(--muted);
+  transition: background-color 0.3s var(--ease);
+}
+.rh-tabs button:hover {
+  background: var(--sunken);
+  color: var(--ink);
+}
+.rh-tabs button[aria-selected="true"] {
+  background: var(--ink);
+  color: var(--paper);
+}
+.rh-count {
+  font: 500 12px/16px var(--mono);
+}
+
+/* ---------- it's your turn ---------- */
+/* In the room's grid, over the top of the chat (on phones, of the pane that shows). */
+.turn-banner {
+  grid-area: chat;
+  align-self: start;
+  justify-self: center;
+  z-index: 5;
+  width: min(640px, calc(100% - 32px));
+  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 16px;
+  padding: 12px 12px 12px 16px;
+  border-radius: 16px;
+  color: #fff;
+  background: rgba(0, 71, 255, 0.9);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: 0 16px 40px rgba(0, 71, 255, 0.3);
+  /* Pulses twice and stops. */
+  animation:
+    turn-in 0.5s var(--ease),
+    turn-pulse 0.9s var(--ease) 0.5s 2;
+}
+.turn-hand {
+  flex: none;
+  width: 24px;
+  height: 24px;
+}
+.turn-text {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+.turn-title {
+  font-size: 18px;
+  line-height: 28px;
+  font-weight: 600;
+}
+.turn-message {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 4px;
+}
+.turn-message svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+}
+.turn-btn {
+  background: #fff;
+  color: var(--blue);
+}
+.turn-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.88);
+}
+.turn-banner :focus-visible {
+  outline-color: #fff;
+}
+.turn-banner .err {
+  flex-basis: 100%;
+  color: #fff;
+}
+.turn-banner .err a {
+  color: #fff;
+}
+
+/* ---------- sheets ---------- */
+/* The dialog is only a frame and its body is the glass sheet, so a click on the dialog itself is
+   a click on the backdrop (Sheet.tsx). No display here: a closed dialog must stay hidden. */
+.sheet-dialog {
+  width: min(560px, calc(100% - 32px));
+  max-width: none;
+  max-height: none;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  overflow: visible;
+}
+.sheet-dialog::backdrop {
+  background: rgba(20, 21, 26, 0.34);
+  animation: sheet-fade 0.3s ease-out;
+}
+.sheet-body {
+  --muted: #54565e; /* darker than on paper: this text sits on glass over the room */
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-height: calc(100dvh - 48px);
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 24px;
+  border: 1px solid var(--hairline);
+  border-radius: 16px;
+  background: rgba(247, 246, 242, 0.9);
+  backdrop-filter: blur(24px) saturate(1.4);
+  -webkit-backdrop-filter: blur(24px) saturate(1.4);
+  box-shadow: 0 24px 64px rgba(20, 21, 26, 0.18);
+  /* On the glass itself: a fading parent would hide the page from its blur until the end. */
+  animation: sheet-in 0.4s cubic-bezier(0.32, 0.72, 0, 1);
+}
+.sheet-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+.sheet-head h2 {
+  font-size: 24px;
+  line-height: 32px;
+  letter-spacing: -0.012em;
+}
+.sheet-lead {
+  color: var(--muted);
+}
+.sheet-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.sheet-field-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+.sheet-optional {
+  font-weight: 420;
+  color: var(--muted);
+}
+.sheet-count {
+  font: 400 12px/16px var(--mono);
+  color: var(--muted);
+  white-space: nowrap;
+}
+.sheet-count.sheet-over {
+  color: var(--amber);
+}
+.sheet-body textarea,
+.sheet-body select {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--hairline);
+  background: var(--surface);
+  border-radius: 12px;
+  padding: 8px 12px;
+  font-size: 16px; /* below 16px, phones zoom into a focused field */
+  line-height: 24px;
+  transition: border-color 0.3s var(--ease);
+}
+.sheet-body textarea {
+  min-height: 72px;
+  resize: vertical;
+}
+.sheet-body textarea:focus,
+.sheet-body select:focus {
+  border-color: var(--blue);
+}
+.sheet-body textarea[aria-invalid="true"] {
+  border-color: var(--amber);
+}
+.field .sheet-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.sheet-check input {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin: 2px 0 0;
+  accent-color: var(--blue);
+}
+.btn.sheet-ink {
+  background: var(--ink);
+  color: var(--paper);
+}
+.btn.sheet-ink:hover:not(:disabled) {
+  background: #2b2c33;
+}
+.sheet-eyebrow {
+  font: 500 12px/16px var(--mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+/* Sticks to the bottom of a sheet that scrolls, so its action stays in reach. */
+.sheet-foot {
+  position: sticky;
+  bottom: -24px;
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 -24px -24px;
+  padding: 12px 24px 24px;
+  background: rgba(247, 246, 242, 0.9);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+}
+/* "Already answered?" in the raise-hand sheet. */
+.sheet-similar {
+  padding: 12px;
+  border: 1px solid var(--hairline);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.sheet-similar h3 {
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 600;
+}
+.sheet-similar ul {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+  list-style: none;
+}
+.sheet-entry {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 8px;
+  border-radius: 8px;
+  overflow-wrap: anywhere;
+  transition: background-color 0.3s var(--ease);
+}
+.sheet-entry:hover {
+  background: var(--sunken);
+}
+.sheet-entry svg {
+  width: 16px;
+  height: 16px;
+  color: var(--muted);
+  transition: transform 0.5s var(--ease);
+}
+.sheet-entry[aria-expanded="true"] svg {
+  transform: rotate(180deg);
+}
+.sheet-entry-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 4px 8px 8px;
+}
+.sheet-entry-body[hidden] {
+  display: none; /* display: flex would otherwise win over the hidden attribute */
+}
+.sheet-entry-answer {
+  color: var(--muted);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.sheet-entry-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+}
+/* The Done sheet: the question as it was asked, and the entry as it will read. */
+.sheet-asked,
+.sheet-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  overflow-wrap: anywhere;
+}
+.sheet-asked {
+  background: var(--sunken);
+}
+.sheet-preview {
+  gap: 8px;
+  background: var(--surface);
+  box-shadow: var(--ring);
+}
+.sheet-asked-title,
+.sheet-preview-title {
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 500;
+}
+.sheet-asked-details {
+  max-height: 120px;
+  overflow: auto;
+  color: var(--muted);
+  white-space: pre-wrap;
+}
+.sheet-preview-answer {
+  white-space: pre-wrap;
+}
+.sheet-preview-links {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  list-style: none;
+  font: 400 12px/16px var(--mono);
+  color: var(--muted);
+}
+
+/* The brand's name gives its room to the repo's on a narrow desktop; the logo still leads home. */
+@media (max-width: 1199px) {
+  .rh-brand .brand-name {
+    display: none;
+  }
+}
+
+/* ---------- phones and tablets: one pane at a time, the queue first (NFR-COMP-1) ---------- */
+@media (max-width: 1039px) {
+  .room {
+    grid-template-rows: auto minmax(0, 1fr);
+    grid-template-areas: "head" "pane";
+  }
+  .room > .chat,
+  .room > .pane-queue,
+  .turn-banner {
+    grid-area: pane;
+  }
+  /* Out of sight but still laid out: Chat UI's list measures itself (see .chat-host in app.css),
+     so a hidden chat is never display: none. The queue covers it in the same cell. */
+  .room[data-tab="queue"] > .chat {
+    visibility: hidden;
+  }
+  .room[data-tab="chat"] > .pane-queue {
+    display: none;
+  }
+  .rh-tabs {
+    display: flex;
+  }
+  /* The state sits by the logo, the links at the end, in every state of the queue. */
+  .rh-brand .off {
+    margin-left: 8px;
+  }
+  .rh-brand .rh-controls {
+    margin-left: auto;
+  }
+  .turn-banner {
+    width: calc(100% - 16px);
+    margin-top: 8px;
+  }
+  /* Sheets rise from the bottom edge. */
+  .sheet-dialog {
+    width: 100%;
+    margin: auto 0 0;
+  }
+  .sheet-body {
+    max-height: 92dvh;
+    border-width: 1px 0 0;
+    border-radius: 16px 16px 0 0;
+    animation-name: sheet-up;
+  }
+  .sheet-foot {
+    padding-bottom: max(24px, env(safe-area-inset-bottom));
+  }
+}
+
+/* app.css turns every other animation off; a backdrop is not an element it reaches. */
+@media (prefers-reduced-motion: reduce) {
+  .sheet-dialog::backdrop {
+    animation: none;
+  }
+}
+
+@keyframes rh-breathe {
+  50% {
+    opacity: 0.45;
+    transform: scale(0.8);
+  }
+}
+@keyframes turn-in {
+  from {
+    opacity: 0;
+    transform: translateY(-16px);
+  }
+}
+@keyframes turn-pulse {
+  50% {
+    transform: scale(1.025);
+  }
+}
+@keyframes sheet-in {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+}
+@keyframes sheet-up {
+  from {
+    opacity: 0;
+    transform: translateY(32px);
+  }
+}
+@keyframes sheet-fade {
+  from {
+    opacity: 0;
+  }
+}
