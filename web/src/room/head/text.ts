@@ -1,5 +1,6 @@
 // The words of the room's head (docs/UI.md S3), from the session alone. Times are counted on the
-// server's clock: `now` is the queue's serverTime moved on by the page (RoomHead).
+// server's clock: `now` is serverNow() of the queue's store (plan decision 12).
+import { toMs } from "../../queue/clock";
 import type { QueueSession } from "../../queue/types";
 
 export type LiveState = "live" | "lastCall" | "off";
@@ -35,7 +36,7 @@ export function headline(session: QueueSession | null): Headline {
 const MINUTE_MS = 60_000;
 
 function minutesIn(session: QueueSession, now: number): number | null {
-  const started = Date.parse(session.startedAt);
+  const started = toMs(session.startedAt);
   if (!Number.isFinite(started) || !Number.isFinite(now)) return null;
   // A page whose clock is behind the server's must not count minutes before the start.
   return Math.max(0, Math.floor((now - started) / MINUTE_MS));
@@ -60,8 +61,8 @@ function liveTime(session: QueueSession, now: number | null): string {
 }
 
 function endedTime(session: QueueSession): string {
-  const started = Date.parse(session.startedAt);
-  const ended = Date.parse(session.endedAt ?? "");
+  const started = toMs(session.startedAt);
+  const ended = toMs(session.endedAt ?? "");
   if (!Number.isFinite(started) || !Number.isFinite(ended)) return "ended";
   return `ended after ${Math.max(1, Math.round((ended - started) / MINUTE_MS))} min`;
 }
