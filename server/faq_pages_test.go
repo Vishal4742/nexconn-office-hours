@@ -38,7 +38,7 @@ func faqPageCheck(t *testing.T, name string, res *http.Response, body string, st
 	if got := res.Header.Get("Content-Type"); got != "text/html; charset=utf-8" {
 		t.Errorf("%s: Content-Type %q, want text/html; charset=utf-8", name, got)
 	}
-	cache := "public, max-age=60"
+	cache := "public, no-cache" // FR-FAQ-6: a deleted answer must not be served from a cache
 	if status >= 500 {
 		cache = "no-store" // a failure is not kept for a minute by every cache on the way
 	}
