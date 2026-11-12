@@ -12,7 +12,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"regexp"
 	"strings"
 	"time"
 
@@ -75,20 +74,6 @@ func writeJSON(w http.ResponseWriter, status int, body envelope) {
 	}
 }
 
-// NFR-SEC-3: owner/repo must match ^[A-Za-z0-9-]{1,39}/[A-Za-z0-9._-]{1,100}$.
-var (
-	ownerRe = regexp.MustCompile(`^[A-Za-z0-9-]{1,39}$`)
-	repoRe  = regexp.MustCompile(`^[A-Za-z0-9._-]{1,100}$`)
-	// Slugs are ours (lower case, digits, hyphens). P3 owns the final rule when it builds them from titles.
-	slugRe = regexp.MustCompile(`^[a-z0-9-]{1,80}$`)
-)
-
-func validOwnerRepo(owner, repo string) bool {
-	// "." and ".." pass the pattern, but GitHub has no such repos and as path parts they mean
-	// "here" and "up".
-	return ownerRe.MatchString(owner) && repoRe.MatchString(repo) && repo != "." && repo != ".."
-}
-
 const probeCookie = "oh_probe"
 
 // cookieSecure follows APP_URL's scheme: Safari drops Secure cookies on http://localhost.
@@ -120,16 +105,18 @@ type tokenIssuer interface {
 	IssueToken(ctx context.Context, userID, name string) (string, error)
 }
 
-// deps are the outside systems the handlers use. A nil db, tokens, github or users means "not
-// configured" and the routes that need it say so. guard and sessions are always there: main
-// refuses to start without APP_URL and AUTH_SECRET.
+// deps are the outside systems the handlers use. A nil db, tokens, rooms, github, users or
+// projects means "not configured" and the routes that need it say so. guard and sessions are
+// always there: main refuses to start without APP_URL and AUTH_SECRET.
 type deps struct {
 	db       pinger
 	tokens   tokenIssuer
+	rooms    roomService
 	guard    *guard.Guard
 	sessions *session.Codec
 	github   *github.Client
 	users    userStore
+	projects projectStore
 }
 
 // spikeUsers are the only ids the P0 test endpoint will ever mint a token for.
@@ -174,6 +161,12 @@ func newMux(cfg config, d deps) *http.ServeMux {
 	mux.HandleFunc("POST /auth/logout", d.logout)
 	mux.HandleFunc("GET /api/me", d.me)
 	mux.HandleFunc("POST /api/nexconn/token", d.nexconnToken) // FR-AUTH-2
+
+	// Projects (FR-PROJ-1..3). The page's data is under /api/p/, like the page itself: under
+	// /api/projects/ a repo called "members" would collide with a project's own routes.
+	mux.HandleFunc("POST /api/projects", d.registerProject)
+	mux.HandleFunc("GET /api/p/{owner}/{repo}", d.projectPage)
+	mux.HandleFunc("GET /api/me/projects", d.myProjects)
 
 	mux.HandleFunc("GET /api/config", func(w http.ResponseWriter, _ *http.Request) {
 		if cfg.AppKey == "" || cfg.Area == "" {
@@ -253,16 +246,12 @@ func openGitHub(origin string) (*github.Client, error) {
 }
 
 // openNexconn returns nil when the server has no Nexconn credentials, e.g. in CI.
-func openNexconn() (tokenIssuer, error) {
+func openNexconn() (*nexconn.Client, error) {
 	key, secret, base := os.Getenv("NEXT_PUBLIC_NEXCONN_APP_KEY"), os.Getenv("NEXCONN_APP_SECRET"), os.Getenv("NEXCONN_API_BASE_URL")
 	if key == "" || secret == "" || base == "" {
 		return nil, nil
 	}
-	client, err := nexconn.New(nexconn.Config{AppKey: key, AppSecret: secret, BaseURL: base, BackupURL: os.Getenv("NEXCONN_API_BACKUP_URL")})
-	if err != nil {
-		return nil, err
-	}
-	return client, nil
+	return nexconn.New(nexconn.Config{AppKey: key, AppSecret: secret, BaseURL: base, BackupURL: os.Getenv("NEXCONN_API_BACKUP_URL")})
 }
 
 // newDeps reads the environment and connects what is configured. APP_URL and AUTH_SECRET are not
@@ -276,7 +265,7 @@ func newDeps(ctx context.Context, cfg config) (deps, error) {
 	if err != nil {
 		return deps{}, fmt.Errorf("database: %w", err)
 	}
-	g, err := guard.New(cfg.AppURL, sessions, nil) // roles join in the projects slice
+	g, err := guard.New(cfg.AppURL, sessions, nil) // roles join with the first route that needs one (the room's member list)
 	if err != nil {
 		return deps{}, err
 	}
@@ -284,13 +273,18 @@ func newDeps(ctx context.Context, cfg config) (deps, error) {
 	if err != nil {
 		return deps{}, err
 	}
-	tokens, err := openNexconn()
+	chat, err := openNexconn()
 	if err != nil {
 		return deps{}, fmt.Errorf("nexconn: %w", err)
 	}
-	d := deps{tokens: tokens, guard: g, sessions: sessions, github: gh}
-	if db != nil { // a nil *store.Store inside an interface would not compare equal to nil
-		d.db, d.users = db, db
+	d := deps{guard: g, sessions: sessions, github: gh}
+	// A nil pointer inside an interface would not compare equal to nil, so each is set only when
+	// it exists.
+	if chat != nil {
+		d.tokens, d.rooms = chat, chat
+	}
+	if db != nil {
+		d.db, d.users, d.projects = db, db, db
 	}
 	return d, nil
 }

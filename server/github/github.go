@@ -143,6 +143,77 @@ func (c *Client) User(ctx context.Context, token string) (User, error) {
 	return u, nil
 }
 
+// The refusals of Repo that the person asking can do something about. Any other error means
+// GitHub did not give a usable answer.
+var (
+	ErrNotFound     = errors.New("github: no such repository, or not one this token can see")
+	ErrUnauthorized = errors.New("github: the token was refused")
+	ErrForbidden    = errors.New("github: access to the repository was refused")
+)
+
+// Repo is a repository as the signed-in user sees it.
+type Repo struct {
+	Owner       string // GitHub's own spelling, which may differ in case from what was asked
+	Name        string
+	Description string
+	Private     bool
+	OwnerIsOrg  bool
+	// CanMaintain is permissions.admin or permissions.maintain (FR-PROJ-1). KnowsPermissions is
+	// false when the reply had no permissions at all: then CanMaintain says nothing.
+	CanMaintain      bool
+	KnowsPermissions bool
+}
+
+// Repo asks GitHub about one repository with the user's own token. A token with the read:user
+// scope sees public repositories only; a private one answers like one that does not exist.
+func (c *Client) Repo(ctx context.Context, token, owner, name string) (Repo, error) {
+	// Escaped, so a name can never reach another endpoint with the user's token attached.
+	req, err := c.apiRequest(ctx, token, "/repos/"+url.PathEscape(owner)+"/"+url.PathEscape(name))
+	if err != nil {
+		return Repo{}, err
+	}
+	var reply struct {
+		Name        string `json:"name"`
+		Description string `json:"description"` // null for many repositories
+		Private     bool   `json:"private"`
+		Owner       struct {
+			Login string `json:"login"`
+			Type  string `json:"type"`
+		} `json:"owner"`
+		Permissions *struct {
+			Admin    bool `json:"admin"`
+			Maintain bool `json:"maintain"`
+		} `json:"permissions"`
+	}
+	status, err := c.do(req, &reply)
+	if err != nil {
+		return Repo{}, fmt.Errorf("github: read repository: %w", err)
+	}
+	switch status {
+	case http.StatusOK:
+	case http.StatusNotFound:
+		return Repo{}, ErrNotFound
+	case http.StatusUnauthorized:
+		return Repo{}, ErrUnauthorized
+	case http.StatusForbidden:
+		return Repo{}, ErrForbidden
+	default:
+		return Repo{}, fmt.Errorf("github: read repository: http %d", status)
+	}
+	if reply.Name == "" || reply.Owner.Login == "" {
+		return Repo{}, errors.New("github: read repository: no usable repository in the reply")
+	}
+	repo := Repo{
+		Owner: reply.Owner.Login, Name: reply.Name, Description: reply.Description,
+		Private: reply.Private, OwnerIsOrg: reply.Owner.Type == "Organization",
+	}
+	if reply.Permissions != nil {
+		repo.KnowsPermissions = true
+		repo.CanMaintain = reply.Permissions.Admin || reply.Permissions.Maintain
+	}
+	return repo, nil
+}
+
 func (c *Client) apiRequest(ctx context.Context, token, path string) (*http.Request, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.cfg.APIURL+path, nil)
 	if err != nil {

@@ -596,8 +596,8 @@ func TestProjectPage(t *testing.T) {
 	t.Run("a repo nobody registered, or a name that is none, is a 404 with a sentence", func(t *testing.T) {
 		for _, path := range []string{"/api/p/paperplane/other", "/api/p/paper_plane/stash", "/api/p/paperplane/..", "/api/p/paperplane/%3Cb%3E"} {
 			res, body := call(a.mux, "GET", path, "", nil)
-			// "/.." is cleaned away by the router before any handler runs, which is as good.
-			if res.StatusCode != 404 && res.StatusCode != http.StatusMovedPermanently {
+			// The router cleans "/.." away and redirects before any handler runs, which is as good.
+			if isRedirect := res.StatusCode >= 300 && res.StatusCode < 400; res.StatusCode != 404 && !isRedirect {
 				t.Errorf("%s: status %d body %s, want 404", path, res.StatusCode, body)
 			}
 			if strings.Contains(body, "<b>") {

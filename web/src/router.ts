@@ -8,9 +8,14 @@ export type Route =
   | { readonly name: "spike" }
   | { readonly name: "notFound" };
 
-// The same patterns as the server (NFR-SEC-3). Here they only decide between a page and "not found".
+// The same patterns as the server (NFR-SEC-3). Here they only spare a request that would be refused.
 const OWNER = /^[A-Za-z0-9-]{1,39}$/;
 const REPO = /^[A-Za-z0-9._-]{1,100}$/;
+
+/** Whether owner/repo can be a GitHub repository. "." and ".." fit the pattern but are none. */
+export function isRepoName(owner: string, repo: string): boolean {
+  return OWNER.test(owner) && REPO.test(repo) && repo !== "." && repo !== "..";
+}
 
 export function matchRoute(pathname: string): Route {
   const path = pathname.length > 1 ? pathname.replace(/\/$/, "") : pathname;
@@ -21,12 +26,7 @@ export function matchRoute(pathname: string): Route {
   const parts = path.split("/");
   const [, prefix, owner, repo] = parts;
   const isProject =
-    parts.length === 4 &&
-    prefix === "p" &&
-    OWNER.test(owner) &&
-    REPO.test(repo) &&
-    repo !== "." &&
-    repo !== "..";
+    parts.length === 4 && prefix === "p" && isRepoName(owner, repo);
   return isProject ? { name: "room", owner, repo } : { name: "notFound" };
 }
 

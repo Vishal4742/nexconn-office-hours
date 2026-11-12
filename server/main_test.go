@@ -74,32 +74,6 @@ func TestRoutes(t *testing.T) {
 	}
 }
 
-func TestValidOwnerRepo(t *testing.T) {
-	tests := []struct {
-		owner, repo string
-		want        bool
-	}{
-		{"paperplane", "stash", true},
-		{"a-b", "My.Repo_1-x", true},
-		{strings.Repeat("a", 39), strings.Repeat("r", 100), true},
-		{"", "stash", false},
-		{"paperplane", "", false},
-		{strings.Repeat("a", 40), "stash", false},
-		{"paperplane", strings.Repeat("r", 101), false},
-		{"under_score", "stash", false},
-		{"paperplane", "sta sh", false},
-		{"paperplane", "st/ash", false},
-		{"paperplane", ".", false}, // GitHub has no such repos, and as path parts they mean "here" and "up"
-		{"paperplane", "..", false},
-		{"paperplane", ".github", true},
-	}
-	for _, tt := range tests {
-		if got := validOwnerRepo(tt.owner, tt.repo); got != tt.want {
-			t.Errorf("NFR-SEC-3: validOwnerRepo(%q, %q) = %v, want %v", tt.owner, tt.repo, got, tt.want)
-		}
-	}
-}
-
 // A-10 probe: the cookie Go sets must carry the attributes the real session cookie will use.
 func TestProbeCookie(t *testing.T) {
 	tests := []struct {
