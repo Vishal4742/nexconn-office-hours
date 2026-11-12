@@ -134,8 +134,9 @@ type MemberRoomProps = {
 type OpenSheet =
   | { readonly kind: "none" }
   | { readonly kind: "start" }
-  | { readonly kind: "end" }
-  | { readonly kind: "raise" }
+  /** End and raise belong to one session: they never open over the next one. */
+  | { readonly kind: "end"; readonly sessionId: string }
+  | { readonly kind: "raise"; readonly sessionId: string }
   | { readonly kind: "done"; readonly hand: Hand };
 
 /**
@@ -173,7 +174,9 @@ function MemberRoom({ project, groupId }: MemberRoomProps) {
         tab={tab}
         onTab={setTab}
         onStart={() => setSheet({ kind: "start" })}
-        onEnd={() => setSheet({ kind: "end" })}
+        onEnd={() =>
+          session && setSheet({ kind: "end", sessionId: session.id })
+        }
       />
       <YourTurnBanner queue={queue} />
       <ChatRoom
@@ -187,26 +190,32 @@ function MemberRoom({ project, groupId }: MemberRoomProps) {
         members={members}
         state={queueState}
         onStart={() => setSheet({ kind: "start" })}
-        onRaise={() => setSheet({ kind: "raise" })}
+        onRaise={() =>
+          session && setSheet({ kind: "raise", sessionId: session.id })
+        }
         onDone={(hand) => setSheet({ kind: "done", hand })}
       />
       {sheet.kind === "start" && (
         <StartSessionSheet project={project} onClose={closeSheet} />
       )}
-      {sheet.kind === "end" && session?.live && (
-        <EndSessionSheet
-          session={session}
-          waitingCount={waitingCount}
-          onClose={closeSheet}
-        />
-      )}
-      {sheet.kind === "raise" && session?.live && (
-        <RaiseHandSheet
-          project={project}
-          session={session}
-          onClose={closeSheet}
-        />
-      )}
+      {sheet.kind === "end" &&
+        session?.live &&
+        sheet.sessionId === session.id && (
+          <EndSessionSheet
+            session={session}
+            waitingCount={waitingCount}
+            onClose={closeSheet}
+          />
+        )}
+      {sheet.kind === "raise" &&
+        session?.live &&
+        sheet.sessionId === session.id && (
+          <RaiseHandSheet
+            project={project}
+            session={session}
+            onClose={closeSheet}
+          />
+        )}
       {sheet.kind === "done" && (
         <DoneSheet project={project} hand={sheet.hand} onClose={closeSheet} />
       )}

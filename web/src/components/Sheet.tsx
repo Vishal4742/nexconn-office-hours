@@ -36,7 +36,10 @@ export function Sheet({ title, onClose, children }: Props) {
     dialog.querySelector<HTMLElement>(FIRST_FIELD)?.focus();
     return () => {
       dialog.close();
+      // The button that opened the sheet may be gone (a hand raised, a session started): then the
+      // page itself, so the keyboard does not start again from the top of the document.
       if (opener instanceof HTMLElement && opener.isConnected) opener.focus();
+      else document.getElementById("main")?.focus();
     };
   }, []);
 

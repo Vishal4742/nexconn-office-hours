@@ -17,12 +17,11 @@ export function Said({ doing }: Props) {
       </p>
     );
   }
-  if (doing.status === "done") {
-    return (
-      <p className="q-said" role="status">
-        {doing.message}
-      </p>
-    );
-  }
-  return null;
+  // Always in the page, so a screen reader hears the sentence when it arrives: a live region
+  // that appears with its text already in it is often not read.
+  return (
+    <p className="q-said" role="status">
+      {doing.status === "done" ? doing.message : ""}
+    </p>
+  );
 }
