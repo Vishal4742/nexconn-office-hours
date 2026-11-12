@@ -95,6 +95,9 @@ func TestFAQList(t *testing.T) {
 		{"FR-FAQ-3: a word nobody used finds nothing", "kubernetes", 50, []string{}},
 		{"FR-FAQ-3: a query of small words only finds nothing", "how do I", 50, []string{}},
 		{"NFR-SEC-3: text full of quotes and operators is a search like any other", faqNasty, 50, []string{}},
+		// Postgres refuses a text that holds either (SQLSTATE 22021), and a search would be a 500.
+		{"NFR-SEC-3: a NUL and bytes that are no UTF-8 are left out of a search", "dead\x00line\xff", 50,
+			[]string{"set-a-timeout"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -248,6 +251,8 @@ func TestFAQSuggest(t *testing.T) {
 		{"FR-FAQ-4: an empty text suggests nothing", "", 3, []string{}},
 		{"FR-FAQ-4: punctuation suggests nothing", "??? !!! ...", 3, []string{}},
 		{"FR-FAQ-4: words nobody used suggest nothing", "kubernetes operator helm chart", 3, []string{}},
+		{"NFR-SEC-3: a NUL and bytes that are no UTF-8 are left out of a draft", "How do I set a dead\x00line\xff?", 3,
+			[]string{"set-a-timeout"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
