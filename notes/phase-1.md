@@ -57,3 +57,22 @@ Plan: `notes/phase-1-plan.md`. Each entry below is one slice, with the real outp
 - **CI:** a new step fails the build if `web/dist` contains `gho_`, `client_secret`, `APP_SECRET` or `AUTH_SECRET`. Locally the built app has no match.
 - **Checks:** web lint, typecheck, 13 tests and build ok (main bundle 231 kB, 73 kB gzip; the Nexconn SDK stays in its lazy chunk) · gofmt and vet ok.
 - **Removed:** the Phase 0 status page and its `lib/health` helper with its 6 tests (the landing replaced the page).
+
+## 2026-11-12 13:40 IST: three facts about Chat UI, found on the Phase 0 test page (not merged)
+The plan review asked for these before the real client was written. A throwaway branch added a third test user (`ohspikec`), a second group (`ohspike2`) and a console hook; nothing of it was committed.
+1. **A late joiner's name.** A message from a sender the open room had never heard of showed as the raw id `ohspikec`. After `app.updateUserProfile()` and `app.updateGroupMembers()` it still showed the raw id at once, and "Spike C" 1.5 s later, with no mouse movement and no repaint asked. So the refresh works; the room still asks the list to repaint, which costs nothing.
+2. **Leaving and coming back.** With the chat elements removed from the page, `openChannel` on the same room answered OK, and a freshly mounted list showed its 27 messages within 300 ms.
+3. **A second room.** `openChannel` on another group switched the mounted list to that room (1 message, sender name right). **The input kept pointing at the first room** until `.model` was set again: without that, messages would go to the wrong room. Going back to the first room worked, and **rebuilt the member list from the members hook**: the late joiner was a raw id again, because the test page's hook only knows three people. Hence: the roster must hold the room's current members before every open.
+Test data added to the Nexconn app: user `ohspikec`, group `ohspike2` with one message.
+
+## 2026-11-12 13:50 IST: slice 4b, one Nexconn connection for every signed-in page (`slice/p1-nexconn`)
+- **Built:**
+  - `POST /api/nexconn/token` (FR-AUTH-2): the token for the caller's own `gh<id>`, with the display name from the session. The id never comes from the request.
+  - `web/src/nexconn/client.ts`: starts the engine and Chat UI once (card types and elements, bubble look, input menu, hooks, handlers), then connects; a failed connect can be tried again; sign-out disconnects. `connect.ts` holds the token rule, `roster.ts` what the hooks answer from, `cards.ts` what a card says (plain logic) and `cardElements.ts` the elements, `lazy.ts` loads all of it only once someone is signed in.
+  - `ConnectionBanner`: rendered while signed in. Says "Reconnecting to the chat…" when the connection drops, and offers "Try again" when it could not connect.
+  - The Phase 0 test page now uses the shared cards; its own copy (`spike/bubbles.ts`) is gone.
+- **Tests first:** the test commit failed. Now passing: token endpoint (own id only, query and body can't change it, 401, 403, 502 without Nexconn's text, 503, GET is 405, never cached) · the token rule (first token works; refused once then works; refused twice gives up; a network failure asks for no new token; a failed token request reaches the caller) · the roster (names for everyone, the bot always there, an unknown sender is spotted, rooms kept apart) · cards (only the bot's count; a forged card shows none of its content; the FAQ link comes from the slug; odd content doesn't crash). 27 web tests, 89 cases in the server package.
+- **Real run** (dev servers, the owner's GitHub account in Chrome): on `/dashboard` the page loaded the SDK, called `/api/config` and `/api/nexconn/token`, and the connection state was `connected`; the console shows one start (Strict Mode on). Signing out set the state to `idle` and `/api/me` to 401. On the signed-out landing only the 5-line loader is requested, not the SDK. Signed out, the token endpoint answers 401, and 405 to a GET.
+- **Build:** main bundle 232 kB (73 kB gzip), unchanged by the SDK, which sits in its own 1.43 MB chunk (318 kB gzip) behind the lazy import.
+- **Checks:** gofmt, vet, Go tests (main 87.6%), web lint, typecheck, 27 tests, build: all pass.
+- **Not built here, on purpose:** opening a room (slice 6a). The failed-connection banner was not seen live: it needs Nexconn or the token endpoint to fail while `/api/me` works; its rule is covered by the tests of `connectWithFreshToken`.
