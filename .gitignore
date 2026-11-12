@@ -8,8 +8,7 @@
 .claude/settings.local.json
 # build output
 node_modules/
-.next/
-out/
+dist/
 .vercel/
 coverage/
 playwright-report/
