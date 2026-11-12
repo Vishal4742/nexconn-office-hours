@@ -1,3 +1,5 @@
+import { useState } from "react";
+
 import type { Project } from "../../projects";
 import {
   aheadOfMe,
@@ -35,12 +37,16 @@ export function LiveQueue({
   const waiting = waitingHands(queue);
   const mine = myOpenHand(queue);
   const ahead = aheadOfMe(queue);
+  // The list sits in a different card when nobody waits, so it is drawn anew; its open state
+  // lives here so that it stays as the reader left it.
+  const [isDoneOpen, setDoneOpen] = useState(false);
   const done = (
     <DoneList
       project={project}
       done={queue.done}
       isMaintainer={isMaintainer}
-      isOpen={false}
+      isOpen={isDoneOpen}
+      onToggle={setDoneOpen}
     />
   );
 

@@ -546,3 +546,17 @@
     display: none;
   }
 }
+
+/* The panel takes the focus when the control that had it went away (useAction): the panel itself
+   needs no ring. An empty status line keeps its place in the page for screen readers only. */
+.pane-queue:focus {
+  outline: none;
+}
+.q-said:empty {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+}

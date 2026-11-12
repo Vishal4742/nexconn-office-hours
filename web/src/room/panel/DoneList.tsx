@@ -14,16 +14,28 @@ type Props = {
   readonly isMaintainer: boolean;
   /** Open at first: when the session ended, this list is what is left to read. */
   readonly isOpen: boolean;
+  /** Told when someone opens or closes it, so a parent can keep that across a redraw. */
+  readonly onToggle?: (isOpen: boolean) => void;
 };
 
 /**
  * "Done this session": what became of each hand (plan decision 11). An answered hand links to its
  * public FAQ page; a removed one has no words left to show (FR-MOD-1).
  */
-export function DoneList({ project, done, isMaintainer, isOpen }: Props) {
+export function DoneList({
+  project,
+  done,
+  isMaintainer,
+  isOpen,
+  onToggle,
+}: Props) {
   if (done.length === 0) return null;
   return (
-    <details className="q-done" open={isOpen}>
+    <details
+      className="q-done"
+      open={isOpen}
+      onToggle={(event) => onToggle?.(event.currentTarget.open)}
+    >
       <summary>
         <span>Done this session</span>
         <span className="q-count">{done.length}</span>

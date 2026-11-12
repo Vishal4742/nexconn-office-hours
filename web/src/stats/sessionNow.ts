@@ -1,5 +1,6 @@
 // What the join page says about a project's sessions (FR-PROJ-3, FR-SESS-5): one that is live,
 // the next one's time, or that none is planned. Plain logic, so it can be tested.
+import { toMs } from "../queue/clock";
 import type { Queue } from "../queue/types";
 
 export type SessionNow =
@@ -18,7 +19,7 @@ export function sessionTime(
   locale?: string,
   timeZone?: string,
 ): string {
-  const at = Date.parse(iso);
+  const at = toMs(iso); // Go writes up to nine digits after the second
   if (Number.isNaN(at)) return "";
   // A 24-hour clock writes 09:30, a 12-hour one 9:30 AM.
   const { hour12 } = new Intl.DateTimeFormat(locale, {
@@ -47,7 +48,7 @@ export function sessionNow(
   const { session, nextSessionAt, serverTime } = queue;
   if (session?.live) return { kind: "live", title: session.title };
   if (!nextSessionAt) return { kind: "none" };
-  const isAhead = Date.parse(nextSessionAt) > Date.parse(serverTime); // false for NaN too
+  const isAhead = toMs(nextSessionAt) > toMs(serverTime); // false for NaN too
   const when = isAhead ? sessionTime(nextSessionAt, locale, timeZone) : "";
   return when ? { kind: "next", at: nextSessionAt, when } : { kind: "none" };
 }

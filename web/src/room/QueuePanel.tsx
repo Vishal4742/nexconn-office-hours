@@ -48,7 +48,7 @@ export function QueuePanel({
   const session = queue?.session ?? null;
 
   return (
-    <section className="pane-queue" aria-label="Queue">
+    <section className="pane-queue" aria-label="Queue" tabIndex={-1}>
       <img className="q-scene" src="/panel-day.webp" alt="" />
       {/* NFR-A11Y-1: always in the page, so a screen reader hears each change of the queue. */}
       <p className="sr-only" role="status">
