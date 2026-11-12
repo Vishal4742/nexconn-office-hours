@@ -41,16 +41,21 @@ export function JoinGate({ project, isSignedIn, onJoined }: Props) {
   }
 
   return (
-    <div className="card gate">
-      <p className="gate-lead">
-        Office hours for {project.owner}/{project.repo} happen in this room.
-        Join to ask the maintainers a question, or to follow along.
-      </p>
-      <div className="actions">
+    <div className="gate">
+      <div className="gate-card">
+        <p className="repo muted">
+          {project.owner}/{project.repo}
+        </p>
+        <h1>Join the office hours room</h1>
+        {project.description && <p className="muted">{project.description}</p>}
+        <p>
+          Ask the maintainers a question when they hold office hours, or follow
+          along.
+        </p>
         {isSignedIn === true && (
           <button
             type="button"
-            className="btn primary lg"
+            className="btn primary lg block"
             onClick={handleJoin}
             disabled={joining.status === "sending"}
           >
@@ -58,18 +63,22 @@ export function JoinGate({ project, isSignedIn, onJoined }: Props) {
           </button>
         )}
         {isSignedIn === false && (
-          <a className="btn primary lg" href={signIn}>
+          <a className="btn primary lg block" href={signIn}>
             <GitHubMark />
             Sign in with GitHub to join
           </a>
         )}
-      </div>
-      {joining.status === "refused" && (
-        <p className="err" role="alert">
-          {joining.message}{" "}
-          {joining.needsSignIn && <a href={signIn}>Sign in again</a>}
+        {joining.status === "refused" && (
+          <p className="err" role="alert">
+            {joining.message}{" "}
+            {joining.needsSignIn && <a href={signIn}>Sign in again</a>}
+          </p>
+        )}
+        <p className="fine muted">
+          Office Hours sees your public GitHub profile only. No email, no repo
+          access.
         </p>
-      )}
+      </div>
     </div>
   );
 }
