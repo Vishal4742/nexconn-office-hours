@@ -36,6 +36,11 @@ describe("matchRoute", () => {
     });
   });
 
+  it("the preview of the room's parts exists in development only", () => {
+    expect(matchRoute("/dev/room", true)).toEqual({ name: "devRoom" });
+    expect(matchRoute("/dev/room", false)).toEqual({ name: "notFound" });
+  });
+
   it("forgives one trailing slash", () => {
     expect(matchRoute("/dashboard/")).toEqual({ name: "dashboard" });
     expect(matchRoute("/p/paperplane/stash/")).toEqual({
