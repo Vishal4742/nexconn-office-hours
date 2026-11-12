@@ -2,12 +2,15 @@ import { useEffect, useRef, useState } from "react";
 
 import { errorMessage } from "../api";
 import { loadRoom } from "../nexconn/lazy";
+import type { Person } from "../nexconn/roster";
 import { listMembers } from "../projects";
 
 type Props = {
   readonly groupId: string;
   readonly owner: string;
   readonly repo: string;
+  /** Called with the room's people each time the chat has loaded them. */
+  readonly onMembers: (members: readonly Person[]) => void;
 };
 
 type Opening =
@@ -16,7 +19,7 @@ type Opening =
   | { readonly status: "failed"; readonly message: string };
 
 /** The room's chat (FR-PROJ-4): Chat UI's message list and input for the project's group. */
-export function ChatRoom({ groupId, owner, repo }: Props) {
+export function ChatRoom({ groupId, owner, repo, onMembers }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const [opening, setOpening] = useState<Opening>({ status: "opening" });
   const [tries, setTries] = useState(0);
@@ -33,7 +36,11 @@ export function ChatRoom({ groupId, owner, repo }: Props) {
           {
             groupId,
             name: `${owner}/${repo}`,
-            loadMembers: () => listMembers({ owner, repo }),
+            loadMembers: async () => {
+              const members = await listMembers({ owner, repo });
+              onMembers(members);
+              return members;
+            },
           },
           leaving.signal,
         ),
@@ -57,7 +64,7 @@ export function ChatRoom({ groupId, owner, repo }: Props) {
       leaving.abort();
       close();
     };
-  }, [groupId, owner, repo, tries]);
+  }, [groupId, owner, repo, onMembers, tries]);
 
   function handleRetry() {
     setOpening({ status: "opening" });

@@ -10,13 +10,15 @@ import { useRoute } from "./router";
 export default function App() {
   const route = useRoute();
   const auth = useAuth();
+  // The room fills the window and has a top row of its own (docs/UI.md S3).
+  const isRoom = route.name === "room";
 
   return (
-    <>
+    <div className={isRoom ? "app app-room" : "app"}>
       <a className="skip" href="#main">
         Skip to the page
       </a>
-      <Header />
+      {!isRoom && <Header />}
       {auth.status === "signedIn" && <ConnectionBanner />}
       <main id="main">
         {route.name === "landing" && <Landing />}
@@ -30,6 +32,6 @@ export default function App() {
         )}
         {route.name === "notFound" && <NotFound />}
       </main>
-    </>
+    </div>
   );
 }
