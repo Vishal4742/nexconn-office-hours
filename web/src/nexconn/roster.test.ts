@@ -6,6 +6,7 @@ import {
   groupProfiles,
   isKnownMember,
   membersOf,
+  nameOf,
   rememberRoom,
   strangers,
   userProfiles,
@@ -85,5 +86,12 @@ describe("what Chat UI's hooks answer from, without the network", () => {
     // A message in another room says nothing about this one.
     expect(strangers("pabc", [from("pxyz", "gh7")])).toEqual([]);
     expect(strangers("pabc", [])).toEqual([]);
+  });
+
+  it("names the people it knows, for the places where Chat UI prints an id", () => {
+    rememberRoom("pabc", "paperplane/stash", [mia]);
+    expect(nameOf("gh42")).toBe("Mia K");
+    expect(nameOf(BOT_ID)).toBe("Office Hours");
+    expect(nameOf("gh999")).toBeNull();
   });
 });

@@ -16,6 +16,7 @@ import type { Message } from "@nexconn/chat";
 import {
   BubbleLayout,
   InputMenumID,
+  MessageMenuID,
   NCChatUIApplication,
 } from "@nexconn/chatui";
 import type { ServiceHooks } from "@nexconn/chatui";
@@ -23,6 +24,7 @@ import type { ServiceHooks } from "@nexconn/chatui";
 import { api } from "../api";
 import { OhFaqCard, OhHandCard, OhSessionCard } from "./cardElements";
 import { connectWithFreshToken } from "./connect";
+import { showNamesInReplies } from "./replyNames";
 import { groupProfiles, membersOf, userProfiles } from "./roster";
 
 export type Connection =
@@ -153,7 +155,18 @@ function startOnce(config: {
     ...menu,
     items: menu.items.filter((item) => keep.includes(item.id)),
   });
+  // A room has no other channel to forward to, and nothing to do with several messages at once.
+  const onAMessage: readonly string[] = [
+    MessageMenuID.REPLY,
+    MessageMenuID.COPY,
+    MessageMenuID.DELETE_FOR_ME,
+    MessageMenuID.DELETE_FOR_ALL,
+  ];
+  created.setMessageMenu(
+    created.cloneMessageMenu().filter((item) => onAMessage.includes(item.id)),
+  );
   created.ready();
+  showNamesInReplies();
 
   NCEngine.addConnectionStatusHandler(
     HANDLER_ID,

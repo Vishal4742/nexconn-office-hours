@@ -9,6 +9,13 @@ export class ApiError extends Error {
   }
 }
 
+/** The sentence to show for anything a call threw. */
+export function errorMessage(failure: unknown): string {
+  return failure instanceof Error
+    ? failure.message
+    : "Something went wrong. Try again.";
+}
+
 type Envelope = {
   readonly ok: boolean;
   readonly data?: unknown;

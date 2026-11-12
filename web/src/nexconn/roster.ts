@@ -82,6 +82,29 @@ export function isKnownMember(groupId: string, userId: string): boolean {
   return membersOf(groupId).some((member) => member.userId === userId);
 }
 
+/**
+ * The senders of these messages that the room has not heard of, each once. Any of them means
+ * someone joined after the room was opened, and the room should ask for its members again.
+ */
+export function strangers(
+  groupId: string,
+  messages: readonly {
+    readonly groupId: string;
+    readonly senderUserId: string;
+  }[],
+): readonly string[] {
+  const unknown = messages
+    .filter((message) => message.groupId === groupId)
+    .map((message) => message.senderUserId)
+    .filter((userId) => !isKnownMember(groupId, userId));
+  return [...new Set(unknown)];
+}
+
+/** The name of someone the page has been told about, or null. */
+export function nameOf(userId: string): string | null {
+  return people.get(userId)?.name ?? null;
+}
+
 /** Everyone the page has been told about, for filling Chat UI's profile cache. */
 export function knownPeople(): readonly Person[] {
   return [...people.values()];

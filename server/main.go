@@ -162,11 +162,13 @@ func newMux(cfg config, d deps) *http.ServeMux {
 	mux.HandleFunc("GET /api/me", d.me)
 	mux.HandleFunc("POST /api/nexconn/token", d.nexconnToken) // FR-AUTH-2
 
-	// Projects (FR-PROJ-1..3). The page's data is under /api/p/, like the page itself: under
-	// /api/projects/ a repo called "members" would collide with a project's own routes.
+	// Projects and rooms (FR-PROJ-1..4). Everything about one project is under /api/p/{owner}/{repo},
+	// like its page: the project's id never has to leave the server.
 	mux.HandleFunc("POST /api/projects", d.registerProject)
-	mux.HandleFunc("GET /api/p/{owner}/{repo}", d.projectPage)
 	mux.HandleFunc("GET /api/me/projects", d.myProjects)
+	mux.HandleFunc("GET /api/p/{owner}/{repo}", d.projectPage)
+	mux.HandleFunc("POST /api/p/{owner}/{repo}/join", d.joinRoom)
+	mux.HandleFunc("GET /api/p/{owner}/{repo}/members", d.roomMembers)
 
 	mux.HandleFunc("GET /api/config", func(w http.ResponseWriter, _ *http.Request) {
 		if cfg.AppKey == "" || cfg.Area == "" {
