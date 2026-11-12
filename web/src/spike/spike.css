@@ -1,0 +1,64 @@
+/* P0 spike page only: enough layout to judge Chat UI inside our room shell. */
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+.spike {
+  box-sizing: border-box;
+  height: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 12px;
+  padding: 12px;
+  background: #f7f6f2;
+  color: #14151a;
+  font:
+    14px/20px "Instrument Sans",
+    system-ui,
+    sans-serif;
+}
+.spike-chat {
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: #fff;
+  border-radius: 20px;
+  box-shadow: 0 0 0 1px rgba(20, 21, 26, 0.08);
+}
+.spike-chat > nc-message-list-provider {
+  flex: 1;
+  min-height: 0;
+  display: block;
+}
+.spike-chat > nc-channel-detail-provider {
+  flex: 1;
+  min-height: 0;
+}
+.spike-panel h1 {
+  font-size: 20px;
+  line-height: 28px;
+  margin: 0 0 12px;
+}
+.spike-panel dl {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 4px 12px;
+  margin: 0 0 16px;
+}
+.spike-panel dt {
+  color: #6b6d76;
+}
+.spike-panel dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 760px) {
+  .spike {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto;
+  }
+}

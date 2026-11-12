@@ -1,0 +1,40 @@
+{
+  "name": "office-hours-web",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "npm run typecheck && vite build",
+    "preview": "vite preview",
+    "lint": "eslint . && prettier --check .",
+    "typecheck": "tsc --noEmit",
+    "format": "prettier --write .",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@nexconn/chat": "^26.2.1",
+    "@nexconn/chatui": "^26.2.5",
+    "@nexconn/engine": "^26.2.1",
+    "lit": "^3.3.3",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.3.0",
+    "eslint": "^10.14.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.14.0",
+    "prettier": "^3.10.0",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.72.2",
+    "vite": "^8.3.8",
+    "vitest": "^5.1.0"
+  }
+}
