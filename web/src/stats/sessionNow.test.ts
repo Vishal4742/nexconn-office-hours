@@ -38,6 +38,23 @@ describe("the next session's time", () => {
     );
   });
 
+  it("FR-SESS-5: reads the server's times, which carry up to nine digits after the second", () => {
+    expect(
+      sessionTime("2026-11-19T11:30:00.123456789Z", "en-GB", "UTC"),
+    ).toMatch(/^Thu,? 19 Nov,? 11:30$/);
+    expect(
+      sessionNow(
+        {
+          ...queues.noSession,
+          nextSessionAt: "2026-11-19T11:30:00.123456Z",
+          serverTime: "2026-11-14T11:50:00.987654321Z",
+        },
+        "en-GB",
+        "UTC",
+      ).kind,
+    ).toBe("next");
+  });
+
   it("is nothing for a time that cannot be read", () => {
     expect(sessionTime("soon", "en-GB", "UTC")).toBe("");
     expect(sessionTime("", "en-GB", "UTC")).toBe("");
