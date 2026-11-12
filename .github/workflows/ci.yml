@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  server:
+    name: Go server
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: server/go.mod
+      - name: gofmt
+        run: |
+          unformatted="$(gofmt -l server)"
+          if [ -n "$unformatted" ]; then echo "Run gofmt on: $unformatted"; exit 1; fi
+      - name: vet
+        run: go -C server vet ./...
+      - name: test
+        run: go -C server test ./...
+
+  web:
+    name: Web
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm --prefix web ci
+      - name: lint
+        run: npm --prefix web run lint
+      - name: types
+        run: npm --prefix web run typecheck
+      - name: test
+        run: npm --prefix web test
+      - name: build
+        run: npm --prefix web run build
+
+  secrets:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: No secret-looking strings in tracked files
+        run: |
+          pattern='sk-[A-Za-z0-9_-]{20,}|gh[pousr]_[A-Za-z0-9]{30,}|-----BEGIN [A-Z ]*PRIVATE KEY|(NEXCONN_APP_SECRET|AUTH_SECRET|AUTH_GITHUB_SECRET)=[A-Za-z0-9+/_-]{8,}|postgres(ql)?://[^[:space:]:@/]+:[^[:space:]@/]+@'
+          if git grep -nIE "$pattern" -- . ':!.github/workflows/ci.yml'; then
+            echo "A secret-looking string is committed. Remove it and rotate that secret."
+            exit 1
+          fi
