@@ -6,7 +6,7 @@ import type { ChangeEvent } from "react";
 import { refusalOf } from "../../api";
 import type { Sending } from "../../api";
 import { signInHref } from "../../auth";
-import { acceptQueue } from "../../queue/store";
+import { actOnQueue } from "../../queue/store";
 import type { Queue } from "../../queue/types";
 import { amount } from "./limits";
 
@@ -107,9 +107,10 @@ export function Refused({ sending }: { readonly sending: Sending }) {
 type Send = (request: () => Promise<Queue>) => Promise<boolean>;
 
 /**
- * Sends one request that answers with the queue, and gives that queue to acceptQueue, so the room
- * is current before the ping arrives. `send` is true when it worked and the part that sent it is
- * still there (a sheet closes itself then; one the person already closed must not close another).
+ * Sends one request that answers with the queue, through actOnQueue, so the room is current
+ * before the ping arrives (and an answer about a room the page has left is dropped). `send` is
+ * true when it worked and the part that sent it is still there: a sheet closes itself then, and
+ * one the person already closed must not close another.
  */
 export function useQueueSend(): readonly [Sending, Send] {
   const [sending, setSending] = useState<Sending>({ status: "idle" });
@@ -125,7 +126,7 @@ export function useQueueSend(): readonly [Sending, Send] {
   async function send(request: () => Promise<Queue>): Promise<boolean> {
     setSending({ status: "sending" });
     try {
-      acceptQueue(await request());
+      await actOnQueue(request);
     } catch (failure) {
       setSending({ status: "refused", ...refusalOf(failure) });
       return false;

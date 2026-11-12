@@ -1,5 +1,3 @@
-import { useEffect, useState } from "react";
-
 import type { Me } from "../auth";
 import { Avatar } from "../components/Avatar";
 import { Logo } from "../components/Icons";
@@ -12,6 +10,7 @@ import { CopyLink } from "./CopyLink";
 import { RoomTabs } from "./head/RoomTabs";
 import { SessionControls } from "./head/SessionControls";
 import { LIVE_LABEL, headline, liveState, metaLine } from "./head/text";
+import { useServerNow } from "./panel/useServerNow";
 
 /** Below 1040 px the room shows one pane at a time (docs/UI.md, "S3 on phones"). */
 export type RoomTab = "queue" | "chat";
@@ -31,31 +30,6 @@ type Props = {
 
 /** The minutes in the head move on twice a minute. */
 const TICK_MS = 30_000;
-
-/**
- * The server's clock now (plan §2, decision 12): the queue's serverTime, moved on by the page's own
- * clock since that queue arrived, so a page whose clock is wrong still counts the right minutes.
- */
-function useServerNow(serverTime: string | null): number | null {
-  const [tick, setTick] = useState<{
-    readonly of: string;
-    readonly now: number;
-  } | null>(null);
-
-  useEffect(() => {
-    if (serverTime === null) return;
-    const atServer = Date.parse(serverTime);
-    const arrived = Date.now();
-    const timer = setInterval(
-      () => setTick({ of: serverTime, now: atServer + (Date.now() - arrived) }),
-      TICK_MS,
-    );
-    return () => clearInterval(timer);
-  }, [serverTime]);
-
-  if (serverTime === null) return null;
-  return tick?.of === serverTime ? tick.now : Date.parse(serverTime);
-}
 
 function LiveLabel({ session }: { readonly session: QueueSession | null }) {
   const state = liveState(session);
@@ -102,7 +76,7 @@ export function RoomHead({
   onStart,
   onEnd,
 }: Props) {
-  const now = useServerNow(queue?.serverTime ?? null);
+  const now = useServerNow(TICK_MS); // the server's clock (plan decision 12)
   const session = queue?.session ?? null;
   const meta = metaLine(session, now);
   const hasControls = project.isMaintainer && queue !== null;
