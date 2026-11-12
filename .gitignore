@@ -1,0 +1,18 @@
+# secrets and local state
+.env
+.env.*
+!.env.example
+.supermemory/
+.remember/
+.claude/worktrees/
+.claude/settings.local.json
+# build output
+node_modules/
+.next/
+out/
+.vercel/
+coverage/
+playwright-report/
+test-results/
+*.tsbuildinfo
+.DS_Store
