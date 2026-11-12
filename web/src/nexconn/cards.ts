@@ -120,7 +120,7 @@ function shaped(content: unknown, key: string, shape: RegExp): string {
   return typeof value === "string" && shape.test(value) ? value : "";
 }
 
-/** The title as one line of text, or "". */
+/** The title, trimmed, or "" when it is not text or far longer than any title can be. */
 function titleOf(content: unknown): string {
   const value = field(content, "title");
   if (typeof value !== "string" || value.length > MAX_TITLE) return "";
