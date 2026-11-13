@@ -12,7 +12,8 @@ import type { Project, RepoName } from "../projects";
 import { useQueue, watchQueue } from "../queue/store";
 import type { Hand } from "../queue/types";
 import { ChatRoom } from "../room/ChatRoom";
-import { JoinGate } from "../room/JoinGate";
+import { JoinGate, JoinGateLoading } from "../room/JoinGate";
+import { rememberMembership, wasMember } from "../room/memberHint";
 import { QueuePanel } from "../room/QueuePanel";
 import { RoomHead } from "../room/RoomHead";
 import type { RoomTab } from "../room/RoomHead";
@@ -38,6 +39,14 @@ export function Room({ owner, repo }: RepoName) {
   const auth = useAuth();
   const [page, setPage] = useState<Page>({ status: "loading" });
   const [loads, setLoads] = useState(0);
+  // Read once: App gives this page a key per repo.
+  const [wasMemberHere] = useState(() => wasMember({ owner, repo }));
+
+  useEffect(() => {
+    if (page.status === "ready") {
+      rememberMembership({ owner, repo }, Boolean(page.project.groupId));
+    }
+  }, [page, owner, repo]);
 
   useEffect(() => {
     let isCurrent = true;
@@ -85,7 +94,8 @@ export function Room({ owner, repo }: RepoName) {
   return (
     <>
       <Header />
-      {page.status === "loading" && (
+      {page.status === "loading" && !wasMemberHere && <JoinGateLoading />}
+      {page.status === "loading" && wasMemberHere && (
         <div className="wrap page" role="status">
           <span className="sr-only">Loading the room…</span>
           <div className="skel" />

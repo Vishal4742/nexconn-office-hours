@@ -119,6 +119,21 @@ export function JoinGate({ project, isSignedIn, onJoined }: Props) {
   );
 }
 
+/**
+ * The join card's frame while the project loads. Its photo is a visitor's largest paint: drawn
+ * with the first render, it no longer waits for the project's answer (NFR-PERF-2).
+ */
+export function JoinGateLoading() {
+  return (
+    <div className="gate">
+      <div className="gate-card" role="status">
+        <span className="sr-only">Loading the room…</span>
+        <div className="skel" />
+      </div>
+    </div>
+  );
+}
+
 type SessionLineProps = {
   readonly queue: Extra<Queue>;
   readonly repo: RepoName;
