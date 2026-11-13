@@ -33,7 +33,9 @@
          ask for once the app has loaded. It is fetched from here instead, so their largest paint
          stays under 2.5 s on a phone (NFR-PERF-2). On a phone in portrait the join card shows a
          narrow slice of it, so it gets that slice (17 KB, not 59): the query below is the one in
-         app.css's .gate rule. A member's room doesn't show the photo: they fetch it for nothing. -->
+         app.css's .gate rule. A member's room doesn't show the photo: they fetch it for nothing.
+         On "/" a Link header (vercel.json) starts the photo before any script can run; this one
+         is the fallback there (the dev server sends no such header). -->
     <script>
       {
         const path = location.pathname;

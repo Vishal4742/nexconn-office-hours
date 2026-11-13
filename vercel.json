@@ -42,6 +42,15 @@
           "value": "strict-origin-when-cross-origin"
         }
       ]
+    },
+    {
+      "source": "/",
+      "headers": [
+        {
+          "key": "Link",
+          "value": "</hero-meadow.webp>; rel=preload; as=image; fetchpriority=high"
+        }
+      ]
     }
   ],
   "rewrites": [
