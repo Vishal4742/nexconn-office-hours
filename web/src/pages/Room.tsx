@@ -6,6 +6,8 @@ import { Header } from "../components/Header";
 import { Link } from "../components/Link";
 import type { Person } from "../nexconn/roster";
 import { loadProject } from "../projects";
+import { tabTitle } from "../queue/polish";
+import { titleFor } from "../router";
 import type { Project, RepoName } from "../projects";
 import { useQueue, watchQueue } from "../queue/store";
 import type { Hand } from "../queue/types";
@@ -164,6 +166,13 @@ function MemberRoom({ project, groupId }: MemberRoomProps) {
   const waitingCount =
     queue?.hands.filter((hand) => hand.status === "waiting").length ?? 0;
   const closeSheet = () => setSheet({ kind: "none" });
+
+  // FR-QUEUE-11: the tab's title carries my place. App sets the plain title again when the page
+  // changes.
+  useEffect(() => {
+    const base = titleFor({ name: "room", owner, repo });
+    document.title = queue ? tabTitle(base, queue) : base;
+  }, [owner, repo, queue]);
 
   return (
     <div className="room" data-tab={tab}>

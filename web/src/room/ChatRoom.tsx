@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { errorMessage } from "../api";
+import { isFirefox } from "../browser";
 import { loadRoom } from "../nexconn/lazy";
 import type { Person } from "../nexconn/roster";
 import { listMembers } from "../projects";
@@ -79,6 +80,11 @@ export function ChatRoom({ groupId, owner, repo, onMembers }: Props) {
 
   return (
     <section className="chat" aria-label="Chat">
+      {isFirefox(navigator.userAgent) && (
+        <p className="chat-browser">
+          The chat works best in Chrome, Edge or Safari.
+        </p>
+      )}
       {/* Always in the page, so a screen reader hears it; the visible line is below. */}
       <span className="sr-only" role="status">
         {opening.status === "opening" ? "Opening the room…" : ""}

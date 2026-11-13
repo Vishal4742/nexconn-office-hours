@@ -7,6 +7,7 @@ import {
   myOpenHand,
   waitingHands,
 } from "../../queue/place";
+import { waitFor } from "../../queue/polish";
 import type { Hand, Queue, QueueSession } from "../../queue/types";
 import { DoneList } from "./DoneList";
 import { MyPlace } from "./MyPlace";
@@ -68,7 +69,9 @@ export function LiveQueue({
           </p>
         )
       )}
-      {mine && ahead !== null && <MyPlace hand={mine} ahead={ahead} />}
+      {mine && ahead !== null && (
+        <MyPlace hand={mine} ahead={ahead} wait={waitFor(queue)} />
+      )}
       {waiting.length > 0 ? (
         <WaitingCard
           project={project}

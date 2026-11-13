@@ -1,4 +1,5 @@
 import { nextHand } from "../../queue/api";
+import { useMaintainerKey } from "./keys";
 import { answeringHand, myOpenHand, waitingHands } from "../../queue/place";
 import { actOnQueue } from "../../queue/store";
 import type { Queue, QueueSession } from "../../queue/types";
@@ -107,6 +108,7 @@ function NextQuestion({
       : "";
   const next = () =>
     void action.run(() => actOnQueue(() => nextHand(session.id)));
+  useMaintainerKey("next", reason === "" && !action.isBusy, next);
 
   return (
     <div className="qcard q-foot">
@@ -115,9 +117,10 @@ function NextQuestion({
         className="btn primary lg block"
         disabled={reason !== "" || action.isBusy}
         onClick={next}
+        aria-keyshortcuts="N"
       >
         <NextIcon />
-        Next question
+        Next question <kbd className="q-kbd">N</kbd>
         {count > 0 && (
           <span className="q-badge">
             {count}
