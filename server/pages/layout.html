@@ -9,7 +9,7 @@ of docs/UI.md, and the fonts come from the same link as web/index.html. */}}
 <meta name="color-scheme" content="light dark">
 <title>{{template "title" .}}</title>
 {{template "meta" .}}
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='6' fill='%230047FF'/%3E%3Cpath d='M3.12,7.78 L8.18,7.78 L10.06,14.69 A1.21,1.21 0 0 1 8.89,16.22 L6.34,16.22 A1.21,1.21 0 0 1 5.17,15.32 Z M15.82,7.78 L20.88,7.78 L18.83,15.32 A1.21,1.21 0 0 1 17.66,16.22 L15.11,16.22 A1.21,1.21 0 0 1 13.94,14.69 Z M8.99,11.05 L15.01,11.05 L14.35,13.48 L9.65,13.48 Z' fill='%23fff'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230047FF'/%3E%3Cpath d='M8 20a8 8 0 0 1 16 0z' fill='white'/%3E%3Ccircle cx='16' cy='24' r='2' fill='white'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500&amp;family=Instrument+Sans:wght@400..700&amp;family=Instrument+Serif:ital@1&amp;display=swap" rel="stylesheet">
@@ -162,7 +162,7 @@ article h1, .notice h1 { margin-top: 24px; font-size: clamp(28px, 7vw, 36px); li
 </html>
 {{end}}
 
-{{define "logo"}}<svg viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="6" fill="var(--blue)"/><path d="M3.12,7.78 L8.18,7.78 L10.06,14.69 A1.21,1.21 0 0 1 8.89,16.22 L6.34,16.22 A1.21,1.21 0 0 1 5.17,15.32 Z M15.82,7.78 L20.88,7.78 L18.83,15.32 A1.21,1.21 0 0 1 17.66,16.22 L15.11,16.22 A1.21,1.21 0 0 1 13.94,14.69 Z M8.99,11.05 L15.01,11.05 L14.35,13.48 L9.65,13.48 Z" fill="#fff"/></svg>{{end}}
+{{define "logo"}}<svg viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="6" fill="var(--blue)"/><path d="M6 15a6 6 0 0 1 12 0z" fill="#fff"/><circle cx="12" cy="18" r="1.6" fill="#fff"/></svg>{{end}}
 
 {{/* A person's picture, only from an address the page may load. The name beside it says who. */}}
 {{define "avatar"}}{{if webAddress .AvatarURL}}<img class="av" src="{{.AvatarURL}}" alt="" referrerpolicy="no-referrer" loading="lazy">{{end}}{{end}}

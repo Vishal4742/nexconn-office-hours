@@ -1,16 +1,12 @@
 // The few icons the app needs, inline, so nothing is fetched for them. All are decorative: the
 // text next to each one says what it means.
 
-/** The Office Hours mark, an H with legs that lean in. The favicon in index.html and the server's
- * pages/layout.html draw the same H: change all three together. */
 export function Logo() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
       <rect width="24" height="24" rx="6" fill="var(--blue)" />
-      <path
-        d="M3.12,7.78 L8.18,7.78 L10.06,14.69 A1.21,1.21 0 0 1 8.89,16.22 L6.34,16.22 A1.21,1.21 0 0 1 5.17,15.32 Z M15.82,7.78 L20.88,7.78 L18.83,15.32 A1.21,1.21 0 0 1 17.66,16.22 L15.11,16.22 A1.21,1.21 0 0 1 13.94,14.69 Z M8.99,11.05 L15.01,11.05 L14.35,13.48 L9.65,13.48 Z"
-        fill="#fff"
-      />
+      <path d="M6 15a6 6 0 0 1 12 0z" fill="#fff" />
+      <circle cx="12" cy="18" r="1.6" fill="#fff" />
     </svg>
   );
 }
