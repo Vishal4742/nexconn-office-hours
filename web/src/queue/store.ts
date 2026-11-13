@@ -1,8 +1,9 @@
 // The queue of the room that is open, kept current for everything that shows it: the panel, the
 // room's head, the your-turn banner and the hand cards in the chat. The exports listed in
 // notes/phase-2-plan.md are a contract. The queue is loaded on watch, again when the window gets
-// focus or becomes visible, when the Nexconn connection comes (back) up, and when a newer ping of
-// this room arrives (FR-QUEUE-4, FR-QUEUE-6); keeper.ts holds the rules.
+// focus or becomes visible, when the Nexconn connection comes (back) up, when a newer ping of this
+// room arrives, and when a visible room has been quiet too long (FR-QUEUE-4, FR-QUEUE-6); keeper.ts
+// holds the rules.
 import { useSyncExternalStore } from "react";
 
 import { errorMessage } from "../api";
@@ -42,6 +43,8 @@ const clock = makeClock(() => Date.now());
 let latencies: readonly number[] = [];
 /** How long to wait before downloading the chat's code again after it failed. */
 const RETRY_MS = 5_000;
+/** How often a visible page asks the keeper whether its room has gone quiet for too long. */
+const QUIET_CHECK_MS = 15_000;
 
 function set(next: QueueState): void {
   state = next;
@@ -81,9 +84,9 @@ function logLatency(ms: number, ping: Ping): void {
 }
 
 /**
- * The triggers besides the first load: focus, visibility, the connection coming (back) up, and
- * the room's pings. The SDK is reached only through loadClient(): a static import would put 1.4
- * MB into the first page.
+ * The triggers besides the first load: focus, visibility, the connection coming (back) up, the
+ * room's pings, and a room that went quiet while the page is in view. The SDK is reached only
+ * through loadClient(): a static import would put 1.4 MB into the first page.
  */
 function listen(room: WatchedRoom, keeper: Keeper): () => void {
   const onFocus = () => keeper.refresh();
@@ -92,6 +95,10 @@ function listen(room: WatchedRoom, keeper: Keeper): () => void {
   };
   window.addEventListener("focus", onFocus);
   document.addEventListener("visibilitychange", onVisible);
+  // A hidden page asks again when it becomes visible; only one in view needs the quiet check.
+  const quietCheck = setInterval(() => {
+    if (document.visibilityState === "visible") keeper.checkSilence();
+  }, QUIET_CHECK_MS);
 
   let isListening = true;
   let stopClient = () => {};
@@ -129,6 +136,7 @@ function listen(room: WatchedRoom, keeper: Keeper): () => void {
   return () => {
     isListening = false;
     clearTimeout(retry);
+    clearInterval(quietCheck);
     window.removeEventListener("focus", onFocus);
     document.removeEventListener("visibilitychange", onVisible);
     stopClient();
