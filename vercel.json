@@ -1,11 +1,20 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "git": { "deploymentEnabled": { "slice/*": false } },
+  "git": {
+    "deploymentEnabled": {
+      "slice/*": false
+    }
+  },
   "regions": ["sin1"],
   "services": {
     "web": {
       "root": "web",
-      "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+      "rewrites": [
+        {
+          "source": "/(.*)",
+          "destination": "/index.html"
+        }
+      ]
     },
     "go": {
       "root": "server",
@@ -16,21 +25,61 @@
     {
       "source": "/(.*)",
       "headers": [
-        { "key": "Content-Security-Policy", "value": "frame-ancestors 'self'" },
-        { "key": "X-Frame-Options", "value": "SAMEORIGIN" },
-        { "key": "X-Content-Type-Options", "value": "nosniff" },
-        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" }
+        {
+          "key": "Content-Security-Policy",
+          "value": "frame-ancestors 'self'"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "SAMEORIGIN"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        }
       ]
     }
   ],
   "rewrites": [
-    { "source": "/api/(.*)", "destination": { "service": "go" } },
-    { "source": "/auth/(.*)", "destination": { "service": "go" } },
-    { "source": "/p/:owner/:repo/faq", "destination": { "service": "go" } },
+    {
+      "source": "/api/(.*)",
+      "destination": {
+        "service": "go"
+      }
+    },
+    {
+      "source": "/auth/(.*)",
+      "destination": {
+        "service": "go"
+      }
+    },
+    {
+      "source": "/p/:owner/:repo/faq",
+      "destination": {
+        "service": "go"
+      }
+    },
     {
       "source": "/p/:owner/:repo/faq/:slug",
-      "destination": { "service": "go" }
+      "destination": {
+        "service": "go"
+      }
     },
-    { "source": "/(.*)", "destination": { "service": "web" } }
+    {
+      "source": "/p/:owner/:repo/calendar.ics",
+      "destination": {
+        "service": "go"
+      }
+    },
+    {
+      "source": "/(.*)",
+      "destination": {
+        "service": "web"
+      }
+    }
   ]
 }

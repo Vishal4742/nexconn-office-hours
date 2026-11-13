@@ -20,6 +20,7 @@ export default defineConfig({
       "/api": goServer,
       "/auth": goServer,
       "^/p/[^/]+/[^/]+/faq": goServer,
+      "^/p/[^/]+/[^/]+/calendar\\.ics$": goServer,
     },
   },
 });

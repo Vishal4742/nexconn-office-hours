@@ -154,6 +154,7 @@ func newMux(cfg config, d deps) *http.ServeMux {
 	// The public FAQ pages are rendered here, not by the web app (FR-FAQ-3).
 	mux.HandleFunc("GET /p/{owner}/{repo}/faq", d.faqListPage)
 	mux.HandleFunc("GET /p/{owner}/{repo}/faq/{slug}", d.faqEntryPage)
+	mux.HandleFunc("GET /p/{owner}/{repo}/calendar.ics", d.calendarFeed) // FR-SESS-5
 	return mux
 }
 

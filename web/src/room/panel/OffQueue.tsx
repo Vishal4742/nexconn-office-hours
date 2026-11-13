@@ -3,6 +3,7 @@ import type { FormEvent } from "react";
 
 import { CalendarIcon } from "../../components/Icons";
 import type { Project } from "../../projects";
+import { AddToCalendar } from "../../components/AddToCalendar";
 import { setNextSession } from "../../queue/api";
 import { summarize } from "../../queue/place";
 import type { Summary } from "../../queue/place";
@@ -69,6 +70,9 @@ export function OffQueue({ project, queue, isMaintainer }: Props) {
               <span className="q-mono">{whenLabel(nextSessionAt)}</span> (your
               time)
             </p>
+          )}
+          {nextSessionAt && (
+            <AddToCalendar repo={project} startsAt={nextSessionAt} />
           )}
           {isMaintainer && (
             <NextSessionForm
