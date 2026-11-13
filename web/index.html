@@ -13,9 +13,17 @@
     />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!-- Google's stylesheet held the first paint, and the app's script with it, for 750 ms on a
+         phone (Lighthouse, 2026-11-13). It is fetched early without blocking and applied when it
+         arrives; the text swaps to these fonts then (display=swap) (NFR-PERF-2). -->
     <link
+      rel="preload"
+      as="style"
       href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500&family=Instrument+Sans:wght@400..700&family=Instrument+Serif:ital@1&display=swap"
-      rel="stylesheet"
+      onload="
+        this.onload = null;
+        this.rel = 'stylesheet';
+      "
     />
     <title>Office Hours</title>
     <!-- The landing has a dark mode of its own (styles/landing.css). Its class is set here, before
