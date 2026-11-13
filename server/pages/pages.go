@@ -53,6 +53,9 @@ func (s Site) RoomPath() string { return "/p/" + s.Owner + "/" + s.Repo }
 // ListPath is the project's FAQ.
 func (s Site) ListPath() string { return s.RoomPath() + "/faq" }
 
+// CalendarPath is the project's sessions as an .ics feed (FR-SESS-5).
+func (s Site) CalendarPath() string { return s.RoomPath() + "/calendar.ics" }
+
 // ListURL is ListPath on our own origin, for link previews.
 func (s Site) ListURL() string { return s.Origin + s.ListPath() }
 

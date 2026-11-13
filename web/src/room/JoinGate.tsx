@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { refusalOf } from "../api";
 import type { Sending } from "../api";
 import { signInHref } from "../auth";
+import { AddToCalendar } from "../components/AddToCalendar";
 import { CalendarIcon, GitHubMark } from "../components/Icons";
 import { faqPath, latestFaq } from "../faq";
 import type { FaqEntry } from "../faq";
@@ -81,7 +82,7 @@ export function JoinGate({ project, isSignedIn, onJoined }: Props) {
         </p>
         <h1>Join the office hours room</h1>
         {project.description && <p className="muted">{project.description}</p>}
-        <SessionLine queue={queue} />
+        <SessionLine queue={queue} repo={project} />
         <p>
           Ask the maintainers a question when they hold office hours, or follow
           along.
@@ -118,10 +119,13 @@ export function JoinGate({ project, isSignedIn, onJoined }: Props) {
   );
 }
 
-type SessionLineProps = { readonly queue: Extra<Queue> };
+type SessionLineProps = {
+  readonly queue: Extra<Queue>;
+  readonly repo: RepoName;
+};
 
 /** A live session with its title, or the next one in the viewer's time zone (FR-SESS-5). */
-function SessionLine({ queue }: SessionLineProps) {
+function SessionLine({ queue, repo }: SessionLineProps) {
   if (queue.status === "loading") return null;
   if (queue.status === "failed") {
     return <p className="muted">Couldn't check whether a session is live.</p>;
@@ -140,12 +144,15 @@ function SessionLine({ queue }: SessionLineProps) {
   }
   if (now.kind === "next") {
     return (
-      <p className="gate-next">
-        <CalendarIcon />
-        <span>
-          Next session: <time dateTime={now.at}>{now.when}</time>, your time
-        </span>
-      </p>
+      <>
+        <p className="gate-next">
+          <CalendarIcon />
+          <span>
+            Next session: <time dateTime={now.at}>{now.when}</time>, your time
+          </span>
+        </p>
+        <AddToCalendar repo={repo} startsAt={now.at} />
+      </>
     );
   }
   return <p className="muted">No session is live or planned right now.</p>;

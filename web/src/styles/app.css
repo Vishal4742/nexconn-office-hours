@@ -877,3 +877,14 @@ main:focus {
     animation: none !important;
   }
 }
+
+/* "Add to calendar" under a next session's time (FR-SESS-5). */
+.add-cal {
+  margin: 4px 0 0;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--muted);
+}
+.add-cal a {
+  color: var(--blue);
+}

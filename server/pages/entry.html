@@ -24,7 +24,7 @@ next session is written in UTC, and three lines of script show it in the reader'
 <div>
 <h2 id="next">Still stuck?</h2>
 {{if .NextSession.IsZero}}<p class="muted">Ask it live in the room, or open an issue with your question filled in.</p>
-{{else}}<p class="muted">Bring it to the next session, <time datetime="{{iso .NextSession}}" data-local>{{when .NextSession}}</time>.</p>{{end}}
+{{else}}<p class="muted">Bring it to the next session, <time datetime="{{iso .NextSession}}" data-local>{{when .NextSession}}</time>. <a href="{{.CalendarPath}}">Add it to your calendar</a></p>{{end}}
 </div>
 <div class="actions"><a class="btn primary" href="{{.RoomPath}}">Join the room</a><a class="btn ghost" href="{{.IssueURL}}" rel="noopener noreferrer nofollow">{{template "github"}}Open a GitHub issue</a></div>
 </section>
