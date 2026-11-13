@@ -513,3 +513,13 @@
     opacity: 0;
   }
 }
+
+/* NFR-COMP-1: Firefox is told where the chat works best. */
+.chat-browser {
+  margin: 0;
+  padding: 8px 16px;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--muted);
+  border-bottom: 1px solid var(--hairline);
+}

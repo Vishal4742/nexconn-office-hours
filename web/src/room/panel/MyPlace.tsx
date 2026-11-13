@@ -12,6 +12,8 @@ type Props = {
   readonly hand: Hand;
   /** How many wait before it. */
   readonly ahead: number;
+  /** FR-QUEUE-10: "about 10 min", or "" while there is no median yet. */
+  readonly wait: string;
 };
 
 /**
@@ -19,7 +21,7 @@ type Props = {
  * "You're next" (FR-QUEUE-5), and Withdraw (FR-HAND-4), which asks once: a hand raised again
  * waits a minute (FR-HAND-6) and goes to the end.
  */
-export function MyPlace({ hand, ahead }: Props) {
+export function MyPlace({ hand, ahead, wait }: Props) {
   const action = useAction();
   const withdraw = () =>
     void action.run(() => actOnQueue(() => withdrawHand(hand.id)));
@@ -30,6 +32,7 @@ export function MyPlace({ hand, ahead }: Props) {
         <StarIcon />
         {placeLabel(ahead)}
       </p>
+      {wait && <p className="q-mine-wait">{wait}</p>}
       {hand.awayCount > 0 && (
         <p className="q-mine-note">
           You missed your turn, so you moved back. When it comes, press
