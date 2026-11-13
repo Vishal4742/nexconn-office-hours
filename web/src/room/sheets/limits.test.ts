@@ -10,6 +10,7 @@ import {
   cleanText,
   lengthProblem,
   readLinks,
+  scheduleProblem,
 } from "./limits";
 
 const chars = (count: number, char = "a") => char.repeat(count);
@@ -124,5 +125,37 @@ describe("readLinks", () => {
     expect(long).toHaveLength(500);
     expect(readLinks(long).problem).toBeNull();
     expect(readLinks(`${long}b`).problem).toContain("500");
+  });
+});
+
+describe("scheduleProblem", () => {
+  // The viewer's wall clock, as <input type="datetime-local"> holds it: 13 Nov 2026, 12:00.
+  const now = new Date(2026, 10, 13, 12, 0).getTime();
+
+  it("FR-SESS-5: accepts a time still to come and less than a year away", () => {
+    expect(scheduleProblem("2026-11-13T12:01", now)).toBeNull();
+    expect(scheduleProblem("2027-11-13T11:59", now)).toBeNull();
+  });
+
+  it("asks for a day and a time when the field is empty or unreadable", () => {
+    expect(scheduleProblem("", now)).toBe("Pick a day and a time.");
+    expect(scheduleProblem("13/11/2026 18:30", now)).toBe(
+      "Pick a day and a time.",
+    );
+  });
+
+  it("refuses a time that has passed, now included, as the server does", () => {
+    expect(scheduleProblem("2026-11-13T12:00", now)).toBe(
+      "Pick a time that hasn't passed yet.",
+    );
+    expect(scheduleProblem("2026-11-12T18:30", now)).toBe(
+      "Pick a time that hasn't passed yet.",
+    );
+  });
+
+  it("refuses a time a year away or more, as the server does", () => {
+    expect(scheduleProblem("2027-11-13T12:00", now)).toBe(
+      "Pick a time less than a year away.",
+    );
   });
 });
