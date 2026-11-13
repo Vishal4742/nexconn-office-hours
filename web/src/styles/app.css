@@ -737,6 +737,13 @@ main:focus {
   padding: 16px;
   background: #cfdbe6 url("/hero-meadow.webp") 62% 62% / cover no-repeat;
 }
+/* A phone in portrait shows a narrow slice of the photo: this crop is that slice, at the same
+   sharpness for a third of the bytes (NFR-PERF-2). index.html preloads it with the same query. */
+@media (max-width: 760px) and (orientation: portrait) {
+  .gate {
+    background-image: url("/hero-meadow-portrait.webp");
+  }
+}
 .gate-card {
   --muted: #54565e;
   width: min(440px, 100%);
