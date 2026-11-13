@@ -27,7 +27,10 @@
     { "source": "/api/(.*)", "destination": { "service": "go" } },
     { "source": "/auth/(.*)", "destination": { "service": "go" } },
     { "source": "/p/:owner/:repo/faq", "destination": { "service": "go" } },
-    { "source": "/p/:owner/:repo/faq/:slug", "destination": { "service": "go" } },
+    {
+      "source": "/p/:owner/:repo/faq/:slug",
+      "destination": { "service": "go" }
+    },
     { "source": "/(.*)", "destination": { "service": "web" } }
   ]
 }
