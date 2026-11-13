@@ -20,10 +20,24 @@
     <title>Office Hours</title>
     <!-- The landing has a dark mode of its own (styles/landing.css). Its class is set here, before
          the first paint, so a dark system never sees the light page first; the landing removes it
-         when another page is shown. -->
+         when another page is shown.
+         The landing and a room's join card open on the meadow photo, which React or CSS would only
+         ask for once the app and the project have loaded. It is fetched from here instead, so
+         their largest paint stays under 2.5 s on a phone (NFR-PERF-2). A member's room doesn't
+         show it: they fetch its 59 KB for nothing. -->
     <script>
-      if (location.pathname === "/")
-        document.documentElement.classList.add("land-page");
+      {
+        const path = location.pathname;
+        if (path === "/") document.documentElement.classList.add("land-page");
+        if (path === "/" || /^\/p\/[^/]+\/[^/]+\/?$/.test(path)) {
+          const photo = document.createElement("link");
+          photo.rel = "preload";
+          photo.as = "image";
+          photo.href = "/hero-meadow.webp";
+          photo.fetchPriority = "high";
+          document.head.append(photo);
+        }
+      }
     </script>
   </head>
   <body>
