@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { makeClock } from "./clock";
 import { liveSession, queues } from "./fixtures";
-import { keepQueue } from "./keeper";
+import { keepQueue, QUIET_IDLE_MS, QUIET_LIVE_MS } from "./keeper";
 import type { Ping } from "./ping";
 import type { Queue } from "./types";
 
@@ -293,5 +293,97 @@ describe("keepQueue: NFR-PERF-1, the latency of a ping on one clock", () => {
     asked[1].answer(at(10, 2_000));
     await turn();
     expect(latencies).toEqual([0]);
+  });
+});
+
+describe("keepQueue: a quiet room (Telegram's catch-up after silence)", () => {
+  it("FR-QUEUE-6: asks again after a minute without news while a session is live", async () => {
+    const { keeper, page, asked } = await holding(); // heard at 0
+    page.now = QUIET_LIVE_MS - 1_000;
+    keeper.checkSilence();
+    expect(asked).toHaveLength(1);
+
+    page.now = QUIET_LIVE_MS;
+    keeper.checkSilence();
+    expect(asked).toHaveLength(2);
+  });
+
+  it("counts any ping of the room as news, even one of the queue it holds", async () => {
+    const { keeper, page, asked } = await holding();
+    page.now = 50_000;
+    keeper.ping(ping(9, BEHIND + 50_000)); // the version it holds: nothing to fetch
+    expect(asked).toHaveLength(1);
+
+    page.now = 50_000 + QUIET_LIVE_MS - 1_000;
+    keeper.checkSilence();
+    expect(asked).toHaveLength(1);
+    page.now = 50_000 + QUIET_LIVE_MS;
+    keeper.checkSilence();
+    expect(asked).toHaveLength(2);
+  });
+
+  it("counts the queue an action was answered with as news", async () => {
+    const { keeper, page, asked } = await holding();
+    page.now = 40_000;
+    keeper.accept(at(10, 40_000));
+
+    page.now = 40_000 + QUIET_LIVE_MS - 1_000;
+    keeper.checkSilence();
+    expect(asked).toHaveLength(1);
+    page.now = 40_000 + QUIET_LIVE_MS;
+    keeper.checkSilence();
+    expect(asked).toHaveLength(2);
+  });
+
+  it("waits five minutes when no session is live", async () => {
+    const { keeper, page, asked } = setUp();
+    keeper.refresh();
+    asked[0].answer({ ...queues.noSession, serverTime: serverSays(0) });
+    await turn();
+
+    page.now = QUIET_IDLE_MS - 1_000;
+    keeper.checkSilence();
+    expect(asked).toHaveLength(1);
+    page.now = QUIET_IDLE_MS;
+    keeper.checkSilence();
+    expect(asked).toHaveLength(2);
+  });
+
+  it("asks once per quiet spell, not on every check, while the server does not answer", async () => {
+    const { keeper, page, asked } = await holding();
+    page.now = QUIET_LIVE_MS;
+    keeper.checkSilence();
+    asked[1].fail(new Error("offline"));
+    await turn();
+
+    page.now = QUIET_LIVE_MS + 15_000;
+    keeper.checkSilence();
+    expect(asked).toHaveLength(2);
+    page.now = 2 * QUIET_LIVE_MS;
+    keeper.checkSilence();
+    expect(asked).toHaveLength(3);
+  });
+
+  it("keeps the queue it shows while that ask is out", async () => {
+    const { keeper, page, asked, shown, failures } = await holding();
+    page.now = QUIET_LIVE_MS;
+    keeper.checkSilence();
+    asked[1].fail(new Error("offline"));
+    await turn();
+    expect(versions(shown)).toEqual([9]);
+    expect(failures).toEqual([]);
+  });
+
+  it("does nothing before a queue is held, or once it was stopped", async () => {
+    const fresh = setUp();
+    fresh.page.now = 10 * QUIET_IDLE_MS;
+    fresh.keeper.checkSilence();
+    expect(fresh.asked).toHaveLength(0);
+
+    const { keeper, page, asked } = await holding();
+    keeper.stop();
+    page.now = 10 * QUIET_IDLE_MS;
+    keeper.checkSilence();
+    expect(asked).toHaveLength(1);
   });
 });
