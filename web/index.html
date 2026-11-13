@@ -30,18 +30,26 @@
          the first paint, so a dark system never sees the light page first; the landing removes it
          when another page is shown.
          The landing and a room's join card open on the meadow photo, which React or CSS would only
-         ask for once the app and the project have loaded. It is fetched from here instead, so
-         their largest paint stays under 2.5 s on a phone (NFR-PERF-2). A member's room doesn't
-         show it: they fetch its 59 KB for nothing. -->
+         ask for once the app has loaded. It is fetched from here instead, so their largest paint
+         stays under 2.5 s on a phone (NFR-PERF-2). On a phone in portrait the join card shows a
+         narrow slice of it, so it gets that slice (17 KB, not 59): the query below is the one in
+         app.css's .gate rule. A member's room doesn't show the photo: they fetch it for nothing. -->
     <script>
       {
         const path = location.pathname;
+        const isRoom = /^\/p\/[^/]+\/[^/]+\/?$/.test(path);
         if (path === "/") document.documentElement.classList.add("land-page");
-        if (path === "/" || /^\/p\/[^/]+\/[^/]+\/?$/.test(path)) {
+        if (path === "/" || isRoom) {
+          const isPhone = matchMedia(
+            "(max-width: 760px) and (orientation: portrait)",
+          ).matches;
           const photo = document.createElement("link");
           photo.rel = "preload";
           photo.as = "image";
-          photo.href = "/hero-meadow.webp";
+          photo.href =
+            isRoom && isPhone
+              ? "/hero-meadow-portrait.webp"
+              : "/hero-meadow.webp";
           photo.fetchPriority = "high";
           document.head.append(photo);
         }
