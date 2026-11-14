@@ -168,6 +168,11 @@ func newMux(cfg config, d deps) *http.ServeMux {
 	}
 	mux.HandleFunc("GET /api/me/agents", d.myAgents)
 	mux.HandleFunc("POST /api/me/agents/{id}/disconnect", d.disconnectAgent)
+	// The MCP endpoint itself (FR-AGENT-1, FR-AGENT-4): its tools go through this same mux. It
+	// needs our origin to check requests against, which every real server has.
+	if d.guard != nil {
+		mux.Handle(mcpPath, d.agentEndpoint(mux, newAgentLimiter()))
+	}
 
 	// The public FAQ pages are rendered here, not by the web app (FR-FAQ-3), and so are their
 	// versions for agents: {slug}.md and llms.txt (FR-FAQ-7).
