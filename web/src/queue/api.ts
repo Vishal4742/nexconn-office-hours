@@ -21,7 +21,8 @@ function asQueue(data: unknown): Queue {
       "The server sent something unexpected. Reload the page and try again.",
     );
   }
-  return queue as Queue;
+  // A server from before removedHandIds sends none.
+  return { removedHandIds: [], ...queue } as Queue;
 }
 
 const ofProject = (repo: RepoName) => `/api${roomPath(repo)}`;

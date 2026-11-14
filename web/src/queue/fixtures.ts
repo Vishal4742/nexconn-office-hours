@@ -78,6 +78,7 @@ const empty: Queue = {
   nextSessionAt: null,
   medianAnswerSeconds: 0,
   serverTime: NOW,
+  removedHandIds: [],
 };
 
 const answered = hand("100", liwen, {

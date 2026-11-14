@@ -25,6 +25,25 @@ export async function connectWithFreshToken(
   return deps.connect(await deps.fetchToken());
 }
 
+// ConnectionStatus values of the SDK (RCConnectionStatus in @nexconn/engine). This file stays free
+// of the SDK so that it can be tested.
+const CONNECTED = 0;
+const DISCONNECTED = 2;
+
+/**
+ * FR-AUTH-3: what a page that was connected becomes when the SDK reports a status. Network trouble
+ * comes as SUSPENDED ("The SDK will automatically attempt to reconnect") or CONNECTING: the page is
+ * "reconnecting". DISCONNECTED is the SDK giving up, with or without a code (31010 for a kick,
+ * docs: chatsdk-web/connection/reconnect-kick): the connection is "lost", and only a new connect
+ * helps. The page's own sign-out disconnects too, but by then the page is no longer connected.
+ */
+export function afterStatus(
+  status: number,
+): "connected" | "reconnecting" | "lost" {
+  if (status === CONNECTED) return "connected";
+  return status === DISCONNECTED ? "lost" : "reconnecting";
+}
+
 /** Chat UI answers this while its channel list is still loading after a connect. */
 export const CHANNEL_LIST_NOT_READY = 39005;
 

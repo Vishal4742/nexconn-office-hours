@@ -196,6 +196,20 @@ func (s *Store) Queue(ctx context.Context, projectID string) (Snapshot, error) {
 		return cmp.Or(b.ClosedAt.Compare(a.ClosedAt), cmp.Compare(b.ID, a.ID))
 	})
 	snap.MedianAnswer = medianAnswer(snap.Closed)
+
+	// A removed hand's card stays in the chat with its words. The room hides them by these ids,
+	// in later sessions too (FR-MOD-1).
+	// ponytail: the latest 500 only. Recall the card through Nexconn if a room ever removes more.
+	removed, err := tx.Query(ctx, `
+		SELECT h.id FROM hands h JOIN sessions s ON s.id = h.session_id
+		WHERE s.project_id = $1 AND h.status = 'removed'
+		ORDER BY h.id DESC LIMIT 500`, projectID)
+	if err != nil {
+		return Snapshot{}, fmt.Errorf("store: queue: removed: %w", err)
+	}
+	if snap.Removed, err = pgx.CollectRows(removed, pgx.RowTo[int64]); err != nil {
+		return Snapshot{}, fmt.Errorf("store: queue: removed: %w", err)
+	}
 	return snap, nil
 }
 
@@ -446,7 +460,7 @@ func (s *Store) doneWith(ctx context.Context, step stepFunc, sessionID int64, a 
 				askedBy += len(h.Plus) // FR-HAND-8: the +1s, and with them everyone who was merged in
 			}
 		}
-		slug, err := freeSlug(ctx, tx, ap.ProjectID, draft.Slug)
+		slug, err := freeSlug(ctx, tx, ap.ProjectID, draft.Slug, a.HandID)
 		if err != nil {
 			return err
 		}
@@ -475,19 +489,26 @@ func (s *Store) doneWith(ctx context.Context, step stepFunc, sessionID int64, a 
 
 // freeSlug returns base, or base with the first of "-2", "-3", … that no entry of the project
 // has, deleted ones included: an address that answered once is never given to another answer.
-// The whole stays within maxSlug. Dones of one project come one after the other (they hold the
-// lock of its one live session), so looking first is enough; the unique index is the guard.
-func freeSlug(ctx context.Context, tx pgx.Tx, projectID, base string) (string, error) {
+// Past "-200" it ends in the hand's id plus 200 instead, which no number tried and no other hand
+// takes: every title with no letter from a to z starts from "question", so a project that answers
+// in Chinese gets there. The whole stays within maxSlug. Dones of one project come
+// one after the other (they hold the lock of its one live session), so looking first is enough;
+// the unique index is the guard.
+func freeSlug(ctx context.Context, tx pgx.Tx, projectID, base string, handID int64) (string, error) {
 	const tries = 200
-	for n := 1; n <= tries; n++ {
-		slug := base
-		if n > 1 {
-			suffix := "-" + strconv.Itoa(n)
-			if len(slug)+len(suffix) > maxSlug {
-				slug = strings.TrimRight(slug[:maxSlug-len(suffix)], "-")
-			}
-			slug += suffix
+	for n := 1; n <= tries+1; n++ {
+		var suffix string
+		switch {
+		case n > tries:
+			suffix = "-" + strconv.FormatInt(handID+tries, 10)
+		case n > 1:
+			suffix = "-" + strconv.Itoa(n)
 		}
+		slug := base
+		if len(slug)+len(suffix) > maxSlug {
+			slug = strings.TrimRight(slug[:maxSlug-len(suffix)], "-")
+		}
+		slug += suffix
 		var taken bool
 		if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM faq_entries WHERE project_id = $1 AND slug = $2)`, projectID, slug).Scan(&taken); err != nil {
 			return "", fmt.Errorf("store: done: slug: %w", err)
@@ -496,7 +517,7 @@ func freeSlug(ctx context.Context, tx pgx.Tx, projectID, base string) (string, e
 			return slug, nil
 		}
 	}
-	return "", fmt.Errorf("store: done: no free slug after %d tries for %q", tries, base)
+	return "", fmt.Errorf("store: done: no free slug for %q", base)
 }
 
 // ProjectOfSession says which project a session belongs to.

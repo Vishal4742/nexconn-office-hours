@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -181,6 +182,28 @@ func (s *Store) IsMember(ctx context.Context, projectID, userID string) (bool, e
 // IsMaintainer reports whether the user maintains the project.
 func (s *Store) IsMaintainer(ctx context.Context, projectID, userID string) (bool, error) {
 	return s.hasRow(ctx, `SELECT EXISTS (SELECT 1 FROM maintainers WHERE project_id = $1 AND user_id = $2)`, projectID, userID)
+}
+
+// Mute records when a member's mute in the project's room ends (FR-MOD-1); a later mute replaces
+// an earlier one. Someone who is not a member stays as they are.
+func (s *Store) Mute(ctx context.Context, projectID, userID string, until time.Time) error {
+	if _, err := s.pool.Exec(ctx, `UPDATE members SET muted_until = $3 WHERE project_id = $1 AND user_id = $2`, projectID, userID, until); err != nil {
+		return fmt.Errorf("store: mute: %w", err)
+	}
+	return nil
+}
+
+// MutedUntil is when the member's mute in the project's room ends: the zero time when they were
+// never muted or are not a member.
+func (s *Store) MutedUntil(ctx context.Context, projectID, userID string) (time.Time, error) {
+	var until *time.Time // max of no rows is one NULL row
+	if err := s.pool.QueryRow(ctx, `SELECT max(muted_until) FROM members WHERE project_id = $1 AND user_id = $2`, projectID, userID).Scan(&until); err != nil {
+		return time.Time{}, fmt.Errorf("store: muted until: %w", err)
+	}
+	if until == nil {
+		return time.Time{}, nil
+	}
+	return *until, nil
 }
 
 func (s *Store) hasRow(ctx context.Context, sql, projectID, userID string) (bool, error) {

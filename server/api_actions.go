@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 	"unicode"
 
 	"officehours/guard"
@@ -298,6 +299,12 @@ func (d deps) muteMember(w http.ResponseWriter, r *http.Request) {
 		return
 	case theirs.IsMaintainer:
 		writeJSON(w, http.StatusForbidden, envelope{Error: "A maintainer can't be muted."})
+		return
+	}
+	// The chat can't stop the bot from posting their raised hand, so the server keeps the mute too
+	// (AT-18), and first: a hand raised while the chat mutes them is already refused.
+	if err := d.projects.Mute(r.Context(), p.ID, in.UserID, now().Add(time.Duration(minutes)*time.Minute)); err != nil {
+		writeError(w, err)
 		return
 	}
 	if err := d.chat.Mute(r.Context(), groupID(p.ID), in.UserID, int32(minutes)); err != nil {

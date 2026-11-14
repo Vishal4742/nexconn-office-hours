@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"time"
 
 	"officehours/github"
 	"officehours/guard"
@@ -47,6 +48,8 @@ type projectStore interface {
 	AddMember(ctx context.Context, projectID, userID string) error
 	Members(ctx context.Context, projectID string) ([]store.Member, error)
 	ProjectsOf(ctx context.Context, userID string) ([]store.Project, error)
+	Mute(ctx context.Context, projectID, userID string, until time.Time) error
+	MutedUntil(ctx context.Context, projectID, userID string) (time.Time, error)
 }
 
 // errRoom marks a failure of the chat service while a room was being set up.

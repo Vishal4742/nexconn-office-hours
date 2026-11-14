@@ -61,6 +61,7 @@ type Snapshot struct {
 	Closed        []QueueHand   // every other hand of the session, the latest first
 	NextSessionAt time.Time     // FR-SESS-5; zero when not set
 	MedianAnswer  time.Duration // of this session's answered hands; zero until there are two (FR-QUEUE-10)
+	Removed       []int64       // hands a maintainer removed in any session of the project, newest first (FR-MOD-1)
 }
 
 // Applied is what one action did to a session's queue.
