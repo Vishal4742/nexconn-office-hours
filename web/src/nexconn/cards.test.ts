@@ -41,6 +41,7 @@ function context(over: Partial<CardContext> = {}): CardContext {
   return {
     room: ROOM,
     findHand: finder(queues.liveWatching),
+    isRemoved: () => false,
     origin: ORIGIN,
     removal: { step: "idle" },
     ...over,
@@ -398,6 +399,15 @@ describe("the hand card", () => {
       said: "",
     });
     expect(JSON.stringify(card)).not.toContain("took out");
+  });
+
+  it("FR-MOD-1: a hand removed in an earlier session keeps its words out too", () => {
+    // The queue holds only this session's hands, but names every removed one.
+    const card = describeCard(
+      raised({ handId: "41", title: "Words a maintainer took out" }),
+      context({ isRemoved: (handId) => handId === "41" }),
+    );
+    expect(texts(card)).toEqual(["@diego-ruiz raised a hand"]);
   });
 
   it("FR-HAND-5: a hand the queue does not hold shows no status", () => {

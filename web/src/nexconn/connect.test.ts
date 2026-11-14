@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  afterStatus,
   CHANNEL_LIST_NOT_READY,
   connectWithFreshToken,
   inTurn,
@@ -156,5 +157,26 @@ describe("one room is opened at a time", () => {
     const next = inTurn(async () => "opened");
     await expect(failed).rejects.toThrow("could not open");
     await expect(next).resolves.toBe("opened");
+  });
+});
+
+describe("FR-AUTH-3: what a page that was connected shows when the SDK's status changes", () => {
+  // The SDK's ConnectionStatus values (its docs' enum page).
+  const CONNECTED = 0;
+  const CONNECTING = 1;
+  const DISCONNECTED = 2;
+  const SUSPENDED = 3;
+
+  it("connected, or reconnecting while the SDK tries again by itself", () => {
+    expect(afterStatus(CONNECTED)).toBe("connected");
+    expect(afterStatus(CONNECTING)).toBe("reconnecting");
+    // The engine: "Connection paused. The SDK will automatically attempt to reconnect".
+    expect(afterStatus(SUSPENDED)).toBe("reconnecting");
+  });
+
+  it("lost once the SDK has stopped trying, whatever the reason", () => {
+    // A kick (31010), a block (31009), too many tries (33007), or no code at all: the SDK never
+    // retries a DISCONNECTED (state-machine audit, bug 1), so "reconnecting" would stay forever.
+    expect(afterStatus(DISCONNECTED)).toBe("lost");
   });
 });

@@ -135,10 +135,12 @@ type fakeProjects struct {
 	byRepo       map[string]store.Project // key: lower-case owner/repo
 	maintainers  map[string]bool          // "projectID userID"
 	members      map[string]bool
-	joined       map[string][]string // project id → user ids, in the order they joined
-	beforeCreate func()              // runs first in CreateProject: another request that wins the race
-	err          error               // every call fails with it
-	createErr    error               // CreateProject fails with it
+	muted        map[string]time.Time // "projectID userID" → when their mute ends
+	joined       map[string][]string  // project id → user ids, in the order they joined
+	beforeCreate func()               // runs first in CreateProject: another request that wins the race
+	err          error                // every call fails with it
+	createErr    error                // CreateProject fails with it
+	muteErr      error                // Mute and MutedUntil fail with it
 }
 
 func repoKey(owner, repo string) string { return strings.ToLower(owner + "/" + repo) }
@@ -230,6 +232,21 @@ func (f *fakeProjects) AddMaintainer(_ context.Context, projectID, userID string
 	return nil
 }
 
+func (f *fakeProjects) Mute(_ context.Context, projectID, userID string, until time.Time) error {
+	if err := cmp.Or(f.err, f.muteErr); err != nil {
+		return err
+	}
+	f.muted[projectID+" "+userID] = until
+	return nil
+}
+
+func (f *fakeProjects) MutedUntil(_ context.Context, projectID, userID string) (time.Time, error) {
+	if err := cmp.Or(f.err, f.muteErr); err != nil {
+		return time.Time{}, err
+	}
+	return f.muted[projectID+" "+userID], nil
+}
+
 func (f *fakeProjects) ProjectsOf(_ context.Context, userID string) ([]store.Project, error) {
 	if f.err != nil {
 		return nil, f.err
@@ -280,7 +297,7 @@ func newProjectsApp(t *testing.T) *projectsApp {
 	a := &projectsApp{
 		gh: gh, events: events, codec: codec,
 		rooms:    &fakeRooms{events: events, names: map[string]string{}, in: map[string]bool{}},
-		projects: &fakeProjects{events: events, byRepo: map[string]store.Project{}, maintainers: map[string]bool{}, members: map[string]bool{}, joined: map[string][]string{}},
+		projects: &fakeProjects{events: events, byRepo: map[string]store.Project{}, maintainers: map[string]bool{}, members: map[string]bool{}, muted: map[string]time.Time{}, joined: map[string][]string{}},
 	}
 	a.deps = deps{guard: g, sessions: codec, github: client, rooms: a.rooms, projects: a.projects}
 	a.mux = newMux(config{AppURL: testSite}, a.deps)

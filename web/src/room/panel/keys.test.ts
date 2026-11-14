@@ -50,4 +50,11 @@ describe("maintainerKey", () => {
     }
     expect(maintainerKey(press("n"), [tagged("BUTTON")])).toBe("next");
   });
+
+  it("never while a sheet is open, even when focus has left it for the page", () => {
+    // A disabled "Publish" button, or a click on a sheet's text, leaves focus on <body>.
+    const body = { tagName: "BODY" } as unknown as EventTarget;
+    expect(maintainerKey(press("s"), [body], true)).toBeNull();
+    expect(maintainerKey(press("s"), [body], false)).toBe("skip");
+  });
 });

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -474,6 +475,21 @@ func TestQueueSnapshot(t *testing.T) {
 		}
 	})
 
+	t.Run("FR-MOD-1: the hands removed in every session of the project, newest first", func(t *testing.T) {
+		s, pool, live := queueDB(t)
+		mustExec(t, pool, `INSERT INTO projects (id, github_id, owner, repo, created_by) VALUES ('bbbb', 12, 'Other', 'Repo', 'gh1')`)
+		earlier := queueSession(t, pool, "aaaa", "ended")
+		elsewhere := queueSession(t, pool, "bbbb", "live")
+		before := queueHand(t, pool, earlier, "gh2", "removed", 0)
+		queueHand(t, pool, earlier, "gh3", "answered", 0)
+		queueHand(t, pool, elsewhere, "gh2", "removed", 0)
+		now := queueHand(t, pool, live, "gh3", "removed", 0)
+		snap, err := s.Queue(ctx, "aaaa")
+		if err != nil || !slices.Equal(snap.Removed, []int64{now, before}) {
+			t.Fatalf("Removed = %v, %v; want %v: the earlier session's too, and no other project's", snap.Removed, err, []int64{now, before})
+		}
+	})
+
 	t.Run("no live session: the last one that ended, and the count of sessions per project", func(t *testing.T) {
 		pool := testDB(t)
 		people(t, pool)
@@ -568,6 +584,22 @@ func TestDone(t *testing.T) {
 			if len(slug) > 80 {
 				t.Errorf("slug %q is %d characters, more than the 80 a FAQ address takes", slug, len(slug))
 			}
+		}
+	})
+
+	t.Run("FR-FAQ-1: once -2 to -200 are taken, the slug ends in the hand's id plus 200, so Done still finds one", func(t *testing.T) {
+		s, pool, session := queueDB(t)
+		// Every title with no letter from a to z (Chinese, Hindi, Cyrillic) starts from "question".
+		// The hand's own id is small: it was raised early and carried from session to session.
+		mustExec(t, pool, `INSERT INTO faq_entries (project_id, slug, title, answer, author_id)
+			SELECT 'aaaa', CASE WHEN n = 1 THEN 'question' ELSE 'question-' || n END, '如何重试', 'An answer.', 'gh1'
+			FROM generate_series(1, 200) AS n`)
+		hand := queueHand(t, pool, session, "gh2", "answering", 0)
+		d := draft
+		d.Slug = "question"
+		_, entry, err := s.doneWith(ctx, finishing(hand), session, queue.Action{Kind: queue.Done, ActorID: "gh1", HandID: hand, At: queueAt}, d)
+		if want := "question-" + strconv.FormatInt(hand+200, 10); err != nil || entry.Slug != want {
+			t.Fatalf("doneWith = slug %q, err %v; want %q", entry.Slug, err, want)
 		}
 	})
 
