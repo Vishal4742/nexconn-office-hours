@@ -37,6 +37,16 @@ export async function listAgents(): Promise<readonly Agent[]> {
   return data;
 }
 
+/** FR-AGENT-1: the address an AI app adds as an MCP server: this site's own /mcp. */
+export function mcpAddress(origin: string): string {
+  return `${origin}/mcp`;
+}
+
+/** The one line that adds Office Hours to Claude Code. */
+export function claudeCodeCommand(address: string): string {
+  return `claude mcp add --transport http office-hours ${address}`;
+}
+
 /** Ends one app's access. */
 export function disconnectAgent(id: string): Promise<void> {
   return api.post(`/api/me/agents/${encodeURIComponent(id)}/disconnect`);
