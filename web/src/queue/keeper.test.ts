@@ -2,7 +2,12 @@ import { describe, expect, it } from "vitest";
 
 import { makeClock } from "./clock";
 import { liveSession, queues } from "./fixtures";
-import { keepQueue, QUIET_IDLE_MS, QUIET_LIVE_MS } from "./keeper";
+import {
+  keepQueue,
+  QUIET_IDLE_MS,
+  QUIET_LIVE_MS,
+  shouldCheckSilence,
+} from "./keeper";
 import type { Ping } from "./ping";
 import type { Queue } from "./types";
 
@@ -385,5 +390,21 @@ describe("keepQueue: a quiet room (Telegram's catch-up after silence)", () => {
     page.now = 10 * QUIET_IDLE_MS;
     keeper.checkSilence();
     expect(asked).toHaveLength(1);
+  });
+});
+
+describe("shouldCheckSilence (state-machine audit, bug 2)", () => {
+  it("checks a page in view, and a hidden page whose person has a hand in line", () => {
+    expect(shouldCheckSilence(true, null)).toBe(true);
+    expect(shouldCheckSilence(true, queues.liveWatching)).toBe(true);
+    // Hidden, waiting or being answered: a lost ping must not cost the turn notice.
+    expect(shouldCheckSilence(false, queues.liveWaiting)).toBe(true);
+    expect(shouldCheckSilence(false, queues.myTurn)).toBe(true);
+  });
+
+  it("leaves a hidden page alone when its person has nothing in line", () => {
+    expect(shouldCheckSilence(false, null)).toBe(false);
+    expect(shouldCheckSilence(false, queues.liveWatching)).toBe(false);
+    expect(shouldCheckSilence(false, queues.noSession)).toBe(false);
   });
 });
