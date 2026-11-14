@@ -220,6 +220,13 @@ export function findHand(handId: string): Hand | null {
   );
 }
 
+/** Whether a maintainer removed the hand, in this session or an earlier one (FR-MOD-1). */
+export function wasRemoved(handId: string): boolean {
+  return (
+    state.status === "ready" && state.queue.removedHandIds.includes(handId)
+  );
+}
+
 /** The server's clock, as well as this page knows it (plan decision 12): count minutes with it. */
 export function serverNow(): number {
   return clock.serverNow();

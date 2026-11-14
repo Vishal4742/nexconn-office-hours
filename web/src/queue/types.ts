@@ -77,4 +77,6 @@ export type Queue = {
   readonly medianAnswerSeconds: number;
   /** The server's clock when it answered: count minutes from this, not from the page's clock. */
   readonly serverTime: string;
+  /** The hands a maintainer removed, in every session of the room (FR-MOD-1). */
+  readonly removedHandIds: readonly string[];
 };

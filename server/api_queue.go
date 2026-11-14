@@ -313,6 +313,7 @@ type queueJSON struct {
 	NextSessionAt       *time.Time   `json:"nextSessionAt"`       // FR-SESS-5
 	MedianAnswerSeconds int          `json:"medianAnswerSeconds"` // 0 until two hands were answered (FR-QUEUE-10)
 	ServerTime          time.Time    `json:"serverTime"`          // so a page can count minutes without trusting its own clock
+	RemovedHandIDs      []string     `json:"removedHandIds"`      // in every session, so old cards hide their words (FR-MOD-1)
 }
 
 func timeOrNull(t time.Time) *time.Time {
@@ -366,6 +367,10 @@ func describeQueue(snap store.Snapshot, viewerID string, at time.Time) queueJSON
 		NextSessionAt:       timeOrNull(snap.NextSessionAt),
 		MedianAnswerSeconds: int(snap.MedianAnswer.Round(time.Second).Seconds()),
 		ServerTime:          at,
+		RemovedHandIDs:      make([]string, 0, len(snap.Removed)), // [] in JSON, never null
+	}
+	for _, id := range snap.Removed {
+		out.RemovedHandIDs = append(out.RemovedHandIDs, idText(id))
 	}
 	if s := snap.Session; s != nil {
 		out.Session = &sessionJSON{

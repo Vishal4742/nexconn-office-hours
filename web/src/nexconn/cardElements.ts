@@ -9,6 +9,7 @@ import {
   findHand,
   refreshQueue,
   subscribeQueue,
+  wasRemoved,
   watchedRoom,
 } from "../queue/store";
 import { describeCard, faqIdOf } from "./cards";
@@ -162,6 +163,7 @@ class OhCard extends HTMLElement {
     return describeCard(this.#message, {
       room: watchedRoom(),
       findHand,
+      isRemoved: wasRemoved,
       origin: window.location.origin,
       removal: this.#removal(),
     });

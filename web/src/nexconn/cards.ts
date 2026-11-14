@@ -71,6 +71,8 @@ export type CardContext = {
   readonly room: WatchedRoom | null;
   /** A hand of that room's session by its id (findHand of the queue store), or null. */
   readonly findHand: (handId: string) => Hand | null;
+  /** Whether a maintainer removed the hand, in any session of the room (wasRemoved of the store). */
+  readonly isRemoved: (handId: string) => boolean;
   /** This site's origin: the answer's full address goes into the text of a GitHub issue. */
   readonly origin: string;
   /** Where the removal of this card's entry stands. Only a FAQ card reads it. */
@@ -203,13 +205,15 @@ function handCard(content: unknown, context: CardContext): Card {
   const handId = shaped(content, "handId", ID);
   const login = shaped(content, "authorLogin", LOGIN);
   const hand = handId ? context.findHand(handId) : null;
+  const isRemoved =
+    hand?.status === "removed" || (handId !== "" && context.isRemoved(handId));
   const isAnswered = hand?.status === "answered" && isSlug(hand.faqSlug);
   return {
     ...NOTHING,
     lines: [
       ...line("muted", login ? `@${login} raised a hand` : "A hand was raised"),
       // A maintainer took a removed hand's words out of the room; the queue sends none either.
-      ...line("title", hand?.status === "removed" ? "" : titleOf(content)),
+      ...line("title", isRemoved ? "" : titleOf(content)),
       ...statusLine(hand),
     ],
     actions:

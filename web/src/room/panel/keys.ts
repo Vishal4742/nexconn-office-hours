@@ -34,13 +34,21 @@ function isBusy(target: EventTarget): boolean {
 
 /**
  * Which of the maintainer's keys a press is, or null. The path is the event's composed path, so a
- * press inside Chat UI's own input (in a shadow root) counts as typing too.
+ * press inside Chat UI's own input (in a shadow root) counts as typing too. `sheetOpen` covers a
+ * press from outside the sheet: a disabled button or a click on its text leaves focus on <body>.
  */
 export function maintainerKey(
   press: Press,
   path: readonly EventTarget[],
+  sheetOpen = false,
 ): MaintainerKey | null {
-  if (press.altKey || press.ctrlKey || press.metaKey || press.repeat) {
+  if (
+    sheetOpen ||
+    press.altKey ||
+    press.ctrlKey ||
+    press.metaKey ||
+    press.repeat
+  ) {
     return null;
   }
   const key = KEYS[press.key.toLowerCase()];
@@ -61,7 +69,8 @@ export function useMaintainerKey(
   useEffect(() => {
     if (!isOn) return;
     const listen = (event: KeyboardEvent) => {
-      if (maintainerKey(event, event.composedPath()) !== key) return;
+      const sheetOpen = document.querySelector("dialog[open]") !== null;
+      if (maintainerKey(event, event.composedPath(), sheetOpen) !== key) return;
       event.preventDefault();
       latest.current();
     };

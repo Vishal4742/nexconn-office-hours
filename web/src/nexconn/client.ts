@@ -6,7 +6,6 @@
 // This module pulls in the whole SDK, so it is only ever loaded through nexconn/lazy.ts.
 import {
   AreaCode,
-  ConnectionStatus,
   ConnectionStatusHandler,
   LogLevel,
   MessageHandler,
@@ -23,7 +22,7 @@ import type { ServiceHooks } from "@nexconn/chatui";
 
 import { api } from "../api";
 import { OhFaqCard, OhHandCard, OhSessionCard } from "./cardElements";
-import { connectWithFreshToken } from "./connect";
+import { afterStatus, connectWithFreshToken } from "./connect";
 import { showNamesInReplies } from "./replyNames";
 import { groupProfiles, membersOf, userProfiles } from "./roster";
 
@@ -42,6 +41,8 @@ const AREAS: Readonly<Record<string, AreaCode>> = {
   om: AreaCode.OM,
 };
 const HANDLER_ID = "office-hours";
+/** The code of a disconnect because the same person connected elsewhere (docs: reconnect-kick). */
+const KICKED = 31010;
 
 let state: Connection = { status: "idle" };
 const listeners = new Set<() => void>();
@@ -191,14 +192,22 @@ function start(config: {
   NCEngine.addConnectionStatusHandler(
     HANDLER_ID,
     new ConnectionStatusHandler({
-      onConnectionStatusChanged: ({ status }) => {
-        // Only a connection that was up can be "reconnecting"; the first attempt reports itself.
-        if (status === ConnectionStatus.CONNECTED) set({ status: "connected" });
-        else if (
-          state.status === "connected" ||
-          state.status === "reconnecting"
-        )
-          set({ status: "reconnecting" });
+      onConnectionStatusChanged: ({ status, code }) => {
+        const next = afterStatus(status);
+        if (next === "connected") return set({ status: "connected" });
+        // Only a connection that was up can be lost or "reconnecting"; the first attempt
+        // reports itself.
+        if (state.status !== "connected" && state.status !== "reconnecting")
+          return;
+        if (next === "reconnecting") return set({ status: "reconnecting" });
+        connecting = null; // the SDK has stopped trying, so Try again connects anew
+        set({
+          status: "failed",
+          message:
+            code === KICKED
+              ? "You opened this chat in another tab or on another device, so it closed here."
+              : `The chat service closed the connection (code ${code ?? status}).`,
+        });
       },
     }),
   );

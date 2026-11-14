@@ -1,7 +1,9 @@
 package main
 
 import (
+	"fmt"
 	"log"
+	"math"
 	"net/http"
 
 	"officehours/nexconn"
@@ -50,6 +52,16 @@ func (d deps) raiseHand(w http.ResponseWriter, r *http.Request) {
 	var in handInput
 	t, ok := d.onSession(w, r, &in, asMember)
 	if !ok {
+		return
+	}
+	// A hand's title is posted to the room by the bot, so a muted member can't raise one (FR-MOD-1).
+	mutedUntil, err := d.projects.MutedUntil(r.Context(), t.ProjectID, t.User.ID)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	if left := mutedUntil.Sub(now()); left > 0 {
+		writeJSON(w, http.StatusForbidden, envelope{Error: fmt.Sprintf("A maintainer muted you in this room. You can raise a hand again in %d min.", int(math.Ceil(left.Minutes())))})
 		return
 	}
 	title, details := cleanLine(in.Title), cleanText(in.Details)
