@@ -2,13 +2,18 @@ import { useId, useState } from "react";
 
 import { Sheet } from "../../components/Sheet";
 import { endSession } from "../../queue/api";
-import type { QueueSession } from "../../queue/types";
+import type { Hand, QueueSession } from "../../queue/types";
 import { Refused, useQueueSend } from "./parts";
 
 type Props = {
   readonly session: QueueSession;
   /** How many hands are still waiting: what the carry-over choice is about. */
   readonly waitingCount: number;
+  /**
+   * The hand being answered, if any. The server refuses to end a session in the middle of an
+   * answer, so the sheet says so instead of offering End (state-machine audit, bug 7).
+   */
+  readonly answering: Hand | null;
   readonly onClose: () => void;
 };
 
@@ -29,14 +34,19 @@ function carryLabel(count: number): string {
  * "End this session?" with the carry-over choice, ticked by default and left out when nobody
  * waits (FR-SESS-4, FR-SESS-7). The props are a contract (notes/phase-2-plan.md).
  */
-export function EndSessionSheet({ session, waitingCount, onClose }: Props) {
+export function EndSessionSheet({
+  session,
+  waitingCount,
+  answering,
+  onClose,
+}: Props) {
   const carryId = useId();
   const [carry, setCarry] = useState(true);
   const [sending, send] = useQueueSend();
   const isSending = sending.status === "sending";
 
   async function handleEnd() {
-    if (isSending) return;
+    if (isSending || answering) return;
     // With nobody waiting there is nothing to carry; the server's default is kept.
     const isCarried = waitingCount === 0 || carry;
     if (await send(() => endSession(session.id, isCarried))) onClose();
@@ -44,10 +54,18 @@ export function EndSessionSheet({ session, waitingCount, onClose }: Props) {
 
   return (
     <Sheet title="End this session?" onClose={onClose}>
-      <p className="sheet-lead">
-        {stillWaiting(waitingCount)} The room gets a summary card.
-      </p>
-      {waitingCount > 0 && (
+      {answering ? (
+        <p className="sheet-lead">
+          @{answering.author.login}&rsquo;s question is being answered. Finish
+          or skip it first: a session can&rsquo;t end in the middle of an
+          answer.
+        </p>
+      ) : (
+        <p className="sheet-lead">
+          {stillWaiting(waitingCount)} The room gets a summary card.
+        </p>
+      )}
+      {waitingCount > 0 && !answering && (
         <div className="field">
           <label className="sheet-check" htmlFor={carryId}>
             <input
@@ -73,7 +91,7 @@ export function EndSessionSheet({ session, waitingCount, onClose }: Props) {
         <button
           type="button"
           className="btn sheet-ink"
-          disabled={isSending}
+          disabled={isSending || answering !== null}
           onClick={handleEnd}
         >
           {isSending ? "Ending…" : "End session"}

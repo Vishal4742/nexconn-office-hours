@@ -12,7 +12,7 @@ import type { RepoName } from "../projects";
 import { showTurnNotice } from "../room/turnNotice";
 import { loadQueue } from "./api";
 import { makeClock, remember } from "./clock";
-import { keepQueue } from "./keeper";
+import { keepQueue, shouldCheckSilence } from "./keeper";
 import type { Keeper } from "./keeper";
 import { readPing } from "./ping";
 import type { Ping } from "./ping";
@@ -97,9 +97,12 @@ function listen(room: WatchedRoom, keeper: Keeper): () => void {
   };
   window.addEventListener("focus", onFocus);
   document.addEventListener("visibilitychange", onVisible);
-  // A hidden page asks again when it becomes visible; only one in view needs the quiet check.
+  // A page in view checks the quiet room; so does a hidden one whose person waits in line, or a
+  // lost ping would cost them the turn notice. Other hidden pages ask again when seen.
   const quietCheck = setInterval(() => {
-    if (document.visibilityState === "visible") keeper.checkSilence();
+    const queue = state.status === "ready" ? state.queue : null;
+    if (shouldCheckSilence(document.visibilityState === "visible", queue))
+      keeper.checkSilence();
   }, QUIET_CHECK_MS);
 
   let isListening = true;

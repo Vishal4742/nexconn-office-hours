@@ -48,6 +48,18 @@ const LIVE_WITHIN_MS = 10_000;
 export const QUIET_LIVE_MS = 60_000;
 export const QUIET_IDLE_MS = 5 * 60_000;
 
+/**
+ * Whether the quiet-room check runs now. A page in view always checks. A hidden page checks while
+ * its person has a hand in line, so "You're next" and "It's your turn" come even when a ping was
+ * lost (state-machine audit, bug 2); any other hidden page waits until it is seen again.
+ */
+export function shouldCheckSilence(
+  isVisible: boolean,
+  queue: Queue | null,
+): boolean {
+  return isVisible || (queue?.hands.some((hand) => hand.isMine) ?? false);
+}
+
 export function keepQueue(options: KeeperOptions): Keeper {
   const { clock } = options;
   let held: Queue | null = null;

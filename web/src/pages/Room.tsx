@@ -191,6 +191,8 @@ function MemberRoom({ project, groupId }: MemberRoomProps) {
   const session = queue?.session ?? null;
   const waitingCount =
     queue?.hands.filter((hand) => hand.status === "waiting").length ?? 0;
+  const answering =
+    queue?.hands.find((hand) => hand.status === "answering") ?? null;
   const closeSheet = () => setSheet({ kind: "none" });
 
   // FR-QUEUE-11: the tab's title carries my place. App sets the plain title again when the page
@@ -230,7 +232,8 @@ function MemberRoom({ project, groupId }: MemberRoomProps) {
         }
         onDone={(hand) => setSheet({ kind: "done", hand })}
       />
-      {sheet.kind === "start" && (
+      {/* A session that went live meanwhile (another maintainer, another tab) closes Start. */}
+      {sheet.kind === "start" && !session?.live && (
         <StartSessionSheet project={project} onClose={closeSheet} />
       )}
       {sheet.kind === "end" &&
@@ -239,6 +242,7 @@ function MemberRoom({ project, groupId }: MemberRoomProps) {
           <EndSessionSheet
             session={session}
             waitingCount={waitingCount}
+            answering={answering}
             onClose={closeSheet}
           />
         )}
@@ -251,8 +255,15 @@ function MemberRoom({ project, groupId }: MemberRoomProps) {
             onClose={closeSheet}
           />
         )}
+      {/* One sheet per hand (key): a Done opened for the next hand never shows the last one's text. */}
       {sheet.kind === "done" && (
-        <DoneSheet project={project} hand={sheet.hand} onClose={closeSheet} />
+        <DoneSheet
+          key={sheet.hand.id}
+          project={project}
+          hand={sheet.hand}
+          isStillAnswering={answering?.id === sheet.hand.id}
+          onClose={closeSheet}
+        />
       )}
     </div>
   );
