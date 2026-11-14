@@ -226,3 +226,31 @@ func TestRolesWithoutAStoreRefuseInsteadOfCrashing(t *testing.T) {
 		}()
 	}
 }
+
+func TestAgentActsAsItsPerson(t *testing.T) {
+	g, codec := newGuard(t, nil)
+	mia := session.User{ID: "gh1", Login: "mia", GitHubToken: "tok"}
+
+	// FR-AGENT-4: a request the MCP endpoint makes for an agent carries its person in the
+	// context, and every handler's User call answers that person, cookie or not.
+	r := httptest.NewRequest("POST", "/api/hands/7/withdraw", nil).WithContext(WithAgent(context.Background(), mia))
+	if u, err := g.User(r); err != nil || u != mia {
+		t.Fatalf("User = %+v, %v; want the agent's person", u, err)
+	}
+
+	// The context wins over a cookie, so an agent never acts as whoever's browser is open.
+	raj, err := codec.Seal(session.Cookie, session.User{ID: "gh2"}, time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.AddCookie(&http.Cookie{Name: session.Cookie, Value: raj})
+	if u, _ := g.User(r); u.ID != "gh1" {
+		t.Fatalf("User = %s, want the agent's person gh1", u.ID)
+	}
+
+	// An empty person in the context is nobody.
+	r = httptest.NewRequest("GET", "/api/me", nil).WithContext(WithAgent(context.Background(), session.User{}))
+	if _, err := g.User(r); err == nil {
+		t.Fatal("an empty agent person passed as signed in")
+	}
+}

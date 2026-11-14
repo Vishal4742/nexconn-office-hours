@@ -263,6 +263,15 @@ func TestNextIsOnlyEverOneOfOurOwnPages(t *testing.T) {
 		"/p/paperplane":              "/dashboard",
 		"/dashboard/../admin":        "/dashboard",
 		"javascript:alert(1)":        "/dashboard",
+		// FR-AGENT-2: an agent's consent page, with its query, is a place to land too.
+		"/oauth/authorize?client_id=x&state=y":     "/oauth/authorize?client_id=x&state=y",
+		"/oauth/authorize":                         "/oauth/authorize",
+		"//evil.example/oauth/authorize?x=1":       "/dashboard",
+		"https://evil.example/oauth/authorize?x=1": "/dashboard",
+		`/\evil.example/oauth/authorize?x=1`:       "/dashboard",
+		"/oauth/authorize/../../admin?x=1":         "/dashboard",
+		"/oauth/authorizex?x=1":                    "/dashboard",
+		"/oauth/authorize#x":                       "/dashboard",
 	} {
 		t.Run(next, func(t *testing.T) {
 			a := newAuthApp(t)
