@@ -481,7 +481,32 @@ main:focus {
   color: var(--muted);
 }
 .apps .projects {
-  margin-top: 16px;
+  margin-top: 12px;
+}
+.apps-sub {
+  margin-top: 32px;
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 600;
+}
+.mcp-copy {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 8px;
+  padding: 8px 8px 8px 12px;
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: var(--ring);
+}
+.mcp-copy code {
+  flex: 1;
+  min-width: 0;
+  font: 400 14px/20px var(--mono);
+  overflow-wrap: anywhere;
+}
+.apps-lead + .mcp-copy {
+  margin-top: 12px;
 }
 .app-row {
   display: grid;

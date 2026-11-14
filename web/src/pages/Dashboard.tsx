@@ -1,7 +1,13 @@
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 
-import { disconnectAgent, lastUsedLabel, listAgents } from "../agents";
+import {
+  claudeCodeCommand,
+  disconnectAgent,
+  lastUsedLabel,
+  listAgents,
+  mcpAddress,
+} from "../agents";
 import type { Agent } from "../agents";
 import { errorMessage, refusalOf } from "../api";
 import type { Sending } from "../api";
@@ -150,13 +156,24 @@ type Apps =
   | { readonly status: "failed"; readonly message: string };
 
 /**
- * FR-AGENT-3: the AI apps the person let act for them, each with Disconnect, which refuses the
- * app from its next request on. Nothing shows until there is one.
+ * FR-AGENT-1, FR-AGENT-3: where an AI app connects (the MCP address, and the command for Claude
+ * Code), then the apps the person let act for them, each with Disconnect, which refuses the app
+ * from its next request on.
  */
 function ConnectedApps() {
   const [apps, setApps] = useState<Apps>({ status: "loading" });
   const [busyId, setBusyId] = useState<string | null>(null);
   const [refusal, setRefusal] = useState("");
+  const [copied, setCopied] = useState("");
+  const address = mcpAddress(window.location.origin);
+  const command = claudeCodeCommand(address);
+
+  function handleCopy(text: string) {
+    navigator.clipboard.writeText(text).then(
+      () => setCopied(text),
+      () => setCopied(""),
+    );
+  }
 
   useEffect(() => {
     let isCurrent = true;
@@ -194,24 +211,78 @@ function ConnectedApps() {
     }
   }
 
-  if (apps.status === "loading") return null;
-  if (apps.status === "failed") {
-    return (
-      <p className="notice" role="alert">
-        <span>Your connected apps couldn't be loaded. {apps.message}</span>
-      </p>
-    );
-  }
-  if (apps.agents.length === 0) return null;
+  const agents = apps.status === "ready" ? apps.agents : [];
   return (
     <section className="apps" aria-labelledby="apps-title">
-      <h2 id="apps-title">Connected apps</h2>
+      <h2 id="apps-title">Use Office Hours from your AI app</h2>
       <p className="apps-lead">
-        These AI apps can use Office Hours as you. One you disconnect is refused
-        at once.
+        Add this address as an MCP server in Claude, ChatGPT, Cursor or another
+        app that speaks MCP. It asks you to sign in here and to allow it, then
+        it can do what you can.
       </p>
+      <div className="mcp-copy">
+        <code>{address}</code>
+        <button
+          type="button"
+          className="btn ghost sm"
+          onClick={() => handleCopy(address)}
+        >
+          {copied === address ? "Copied" : "Copy"}
+        </button>
+      </div>
+      <p className="apps-lead">In Claude Code:</p>
+      <div className="mcp-copy">
+        <code>{command}</code>
+        <button
+          type="button"
+          className="btn ghost sm"
+          onClick={() => handleCopy(command)}
+        >
+          {copied === command ? "Copied" : "Copy"}
+        </button>
+      </div>
+      {apps.status === "failed" && (
+        <p className="notice" role="alert">
+          <span>Your connected apps couldn't be loaded. {apps.message}</span>
+        </p>
+      )}
+      {agents.length > 0 && apps.status === "ready" && (
+        <ConnectedList
+          agents={agents}
+          at={apps.at}
+          busyId={busyId}
+          onDisconnect={(agent) => void handleDisconnect(agent)}
+        />
+      )}
+      {refusal && (
+        <p className="err" role="alert">
+          {refusal}
+        </p>
+      )}
+    </section>
+  );
+}
+
+type ConnectedListProps = {
+  readonly agents: readonly Agent[];
+  /** When the list arrived: "Used 10 min ago" counts from here. */
+  readonly at: number;
+  readonly busyId: string | null;
+  readonly onDisconnect: (agent: Agent) => void;
+};
+
+/** The apps connected now, newest first, each with Disconnect (asked once). */
+function ConnectedList({
+  agents,
+  at,
+  busyId,
+  onDisconnect,
+}: ConnectedListProps) {
+  return (
+    <>
+      <h3 className="apps-sub">Connected now</h3>
       <ul className="projects">
-        {apps.agents.map((agent) => (
+        {agents.map((agent) => (
           <li key={agent.id} className="app-row">
             <span className="project-name">{agent.app}</span>
             <span className="project-about">
@@ -220,7 +291,7 @@ function ConnectedApps() {
                 day: "numeric",
                 month: "short",
               })}{" "}
-              · {lastUsedLabel(agent.lastUsedAt, apps.at)}
+              · {lastUsedLabel(agent.lastUsedAt, at)}
             </span>
             <div className="app-actions">
               <AskOnce
@@ -228,18 +299,13 @@ function ConnectedApps() {
                 question={`Disconnect ${agent.app}? It can't act for you after this.`}
                 confirm="Disconnect"
                 isBusy={busyId === agent.id}
-                onConfirm={() => void handleDisconnect(agent)}
+                onConfirm={() => onDisconnect(agent)}
               />
             </div>
           </li>
         ))}
       </ul>
-      {refusal && (
-        <p className="err" role="alert">
-          {refusal}
-        </p>
-      )}
-    </section>
+    </>
   );
 }
 
