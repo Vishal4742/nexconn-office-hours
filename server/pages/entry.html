@@ -7,7 +7,9 @@
 <meta property="og:url" content="{{.URL}}">
 <meta property="og:site_name" content="Office Hours">
 <meta name="twitter:card" content="summary">
-<link rel="canonical" href="{{.URL}}">{{end}}
+<link rel="canonical" href="{{.URL}}">
+<link rel="alternate" type="text/markdown" href="{{.MarkdownURL .Slug}}">
+<script type="application/ld+json">{{.LD}}</script>{{end}}
 
 {{/* "Asked by N people" is a number: who asked is named only inside the room (FR-HAND-8). The
 next session is written in UTC, and three lines of script show it in the reader's own time. */}}
