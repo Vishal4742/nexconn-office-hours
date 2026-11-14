@@ -467,6 +467,33 @@ main:focus {
   color: var(--muted);
   overflow-wrap: anywhere;
 }
+/* FR-AGENT-3: the apps that act for the person, under their projects. */
+.apps {
+  margin-top: 48px;
+}
+.apps h2 {
+  font-size: 20px;
+  line-height: 28px;
+  font-weight: 600;
+}
+.apps-lead {
+  margin-top: 4px;
+  color: var(--muted);
+}
+.apps .projects {
+  margin-top: 16px;
+}
+.app-row {
+  display: grid;
+  gap: 4px;
+  padding: 16px;
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: var(--ring);
+}
+.app-actions {
+  margin-top: 8px;
+}
 .tag {
   font: 500 12px/16px var(--mono);
   color: var(--muted);

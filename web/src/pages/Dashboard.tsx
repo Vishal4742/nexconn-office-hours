@@ -1,11 +1,14 @@
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 
+import { disconnectAgent, lastUsedLabel, listAgents } from "../agents";
+import type { Agent } from "../agents";
 import { errorMessage, refusalOf } from "../api";
 import type { Sending } from "../api";
 import { retryAuth, signInHref, useAuth } from "../auth";
 import { GitHubMark } from "../components/Icons";
 import { Link } from "../components/Link";
+import { AskOnce } from "../room/panel/AskOnce";
 import {
   isSameRepo,
   listMyProjects,
@@ -130,8 +133,113 @@ function Projects() {
           )}
         </div>
         <ProjectList list={list} onRetry={handleRetry} />
+        <ConnectedApps />
       </div>
     </div>
+  );
+}
+
+type Apps =
+  | { readonly status: "loading" }
+  | {
+      readonly status: "ready";
+      readonly agents: readonly Agent[];
+      /** When the list arrived: "Used 10 min ago" counts from here. */
+      readonly at: number;
+    }
+  | { readonly status: "failed"; readonly message: string };
+
+/**
+ * FR-AGENT-3: the AI apps the person let act for them, each with Disconnect, which refuses the
+ * app from its next request on. Nothing shows until there is one.
+ */
+function ConnectedApps() {
+  const [apps, setApps] = useState<Apps>({ status: "loading" });
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [refusal, setRefusal] = useState("");
+
+  useEffect(() => {
+    let isCurrent = true;
+    listAgents().then(
+      (agents) => {
+        if (isCurrent) setApps({ status: "ready", agents, at: Date.now() });
+      },
+      (failure: unknown) => {
+        if (isCurrent)
+          setApps({ status: "failed", message: errorMessage(failure) });
+      },
+    );
+    return () => {
+      isCurrent = false;
+    };
+  }, []);
+
+  async function handleDisconnect(agent: Agent) {
+    setBusyId(agent.id);
+    setRefusal("");
+    try {
+      await disconnectAgent(agent.id);
+      setApps((current) =>
+        current.status === "ready"
+          ? {
+              ...current,
+              agents: current.agents.filter((other) => other.id !== agent.id),
+            }
+          : current,
+      );
+    } catch (failure) {
+      setRefusal(errorMessage(failure));
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  if (apps.status === "loading") return null;
+  if (apps.status === "failed") {
+    return (
+      <p className="notice" role="alert">
+        <span>Your connected apps couldn't be loaded. {apps.message}</span>
+      </p>
+    );
+  }
+  if (apps.agents.length === 0) return null;
+  return (
+    <section className="apps" aria-labelledby="apps-title">
+      <h2 id="apps-title">Connected apps</h2>
+      <p className="apps-lead">
+        These AI apps can use Office Hours as you. One you disconnect is refused
+        at once.
+      </p>
+      <ul className="projects">
+        {apps.agents.map((agent) => (
+          <li key={agent.id} className="app-row">
+            <span className="project-name">{agent.app}</span>
+            <span className="project-about">
+              Returns to {agent.returnsTo} · Connected{" "}
+              {new Date(agent.connectedAt).toLocaleDateString(undefined, {
+                day: "numeric",
+                month: "short",
+              })}{" "}
+              · {lastUsedLabel(agent.lastUsedAt, apps.at)}
+            </span>
+            <div className="app-actions">
+              <AskOnce
+                label="Disconnect"
+                question={`Disconnect ${agent.app}? It can't act for you after this.`}
+                confirm="Disconnect"
+                isBusy={busyId === agent.id}
+                onConfirm={() => void handleDisconnect(agent)}
+              />
+            </div>
+          </li>
+        ))}
+      </ul>
+      {refusal && (
+        <p className="err" role="alert">
+          {refusal}
+        </p>
+      )}
+    </section>
   );
 }
 
