@@ -6,9 +6,10 @@ import (
 )
 
 // What agents read (FR-FAQ-7): an answer as Markdown, and a project's answers as its llms.txt
-// (llmstxt.org). Typed text is text here too (NFR-SEC-6): it can't make a link, an image, code or
-// markup, and a question or an answer is quoted line by line, so nothing in it can start a section
-// of its own. Every address is ours, built from the project's registered name and a slug.
+// (llmstxt.org). Typed text is text here too (NFR-SEC-6): it can't make a Markdown link, an image,
+// code or markup (a plain web address in it stays as typed, and a renderer may link it, as the
+// page does), and a question or an answer is quoted line by line, so nothing in it can start a
+// section of its own. Every address is ours, built from the project's registered name and a slug.
 
 // llmsExcerptMax is how much of an answer the llms.txt shows after its title, in characters: as
 // much as the page's description.
@@ -18,8 +19,9 @@ const llmsExcerptMax = 200
 // escaped too, so it can't undo an escape.
 var mdText = strings.NewReplacer(`\`, `\\`, "`", "\\`", "[", `\[`, "]", `\]`, "<", `\<`, ">", `\>`).Replace
 
-// mdLineEnds writes every line ending the Unix way: Markdown ends a line at a lone "\r" too.
-var mdLineEnds = strings.NewReplacer("\r\n", "\n", "\r", "\n").Replace
+// mdLineEnds writes every line ending the Unix way: Markdown ends a line at a lone "\r" too, and
+// some renderers at the Unicode line and paragraph separators and at NEL.
+var mdLineEnds = strings.NewReplacer("\r\n", "\n", "\r", "\n", " ", "\n", " ", "\n", "\u0085", "\n").Replace
 
 // mdLine is typed text on one line: every run of spaces and line breaks is one space.
 func mdLine(s string) string { return mdText(strings.Join(strings.Fields(s), " ")) }
