@@ -1,0 +1,41 @@
+{{define "title"}}Connect {{.App}} · Office Hours{{end}}
+
+{{define "meta"}}<meta name="robots" content="noindex">{{end}}
+
+{{/* FR-AGENT-2. The app's name is what it called itself: text, and not proof of who made it, so
+the page also names where it sends the person back. Allow wakes up 0.8 s after the page has focus:
+a page slipped under the second click of a double-click is pressed before then. */}}
+{{define "main"}}<main class="wrap narrow consent">
+<p class="eyebrow">Connect an app</p>
+<h1>Let {{.App}} use Office Hours as you?</h1>
+<p class="byline">{{template "avatar" .}}<span>Signed in as <span class="mono">@{{.Login}}</span></span></p>
+<section class="card" aria-labelledby="can">
+<h2 id="can">It will be able to do what you can</h2>
+<ul>
+<li>See the rooms you joined, their queues and their answers.</li>
+<li>Raise, withdraw and +1 hands, and say you're here when it's your turn.</li>
+<li>In projects you maintain: start and end sessions, take the next question, answer it, and remove hands and answers.</li>
+</ul>
+<p class="muted">It can't read your email or change anything on GitHub. You can disconnect it any time from your dashboard.</p>
+</section>
+<p class="returns">After you choose, you go back to <strong class="mono">{{.ReturnsTo}}</strong>{{if .OnYourComputer}}: an app that runs on your computer. Allow it only if you started connecting it yourself, just now{{end}}.</p>
+<form method="post" action="/oauth/authorize" class="actions">
+<input type="hidden" name="consent" value="{{.Form}}">
+<button class="btn primary" type="submit" name="decision" value="allow" disabled data-arm>Allow</button>
+<button class="btn ghost" type="submit" name="decision" value="deny">Cancel</button>
+</form>
+<noscript><p class="muted">Turn on JavaScript to allow an app.</p></noscript>
+<script>
+const allow = document.querySelector("[data-arm]");
+let wake;
+const arm = () => {
+  clearTimeout(wake);
+  allow.disabled = true;
+  if (document.visibilityState === "visible" && document.hasFocus()) wake = setTimeout(() => (allow.disabled = false), 800);
+};
+addEventListener("focus", arm);
+addEventListener("blur", arm);
+document.addEventListener("visibilitychange", arm);
+arm();
+</script>
+</main>{{end}}

@@ -60,8 +60,24 @@ func (g *Guard) Origin() string { return g.origin }
 // Safari drops Secure cookies on http://localhost.
 func (g *Guard) Secure() bool { return len(g.origin) >= 8 && g.origin[:8] == "https://" }
 
+// agentKey marks the person an agent acts for in a request's context.
+type agentKey struct{}
+
+// WithAgent marks a request as one an agent makes for u (FR-AGENT-4): User answers u, as it would
+// answer the person whose cookie it read. Only the MCP endpoint calls it, once it has checked the
+// agent's token, and it wins over any cookie on the request.
+func WithAgent(ctx context.Context, u session.User) context.Context {
+	return context.WithValue(ctx, agentKey{}, u)
+}
+
 // User returns the signed-in user, or a 401.
 func (g *Guard) User(r *http.Request) (session.User, error) {
+	if u, ok := r.Context().Value(agentKey{}).(session.User); ok {
+		if u.ID == "" {
+			return session.User{}, &Error{http.StatusUnauthorized, "Sign in first."}
+		}
+		return u, nil
+	}
 	var u session.User
 	if err := g.sessions.Read(r, session.Cookie, &u); err != nil || u.ID == "" {
 		return session.User{}, &Error{http.StatusUnauthorized, "Sign in first."}
