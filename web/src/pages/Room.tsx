@@ -9,7 +9,12 @@ import { loadProject } from "../projects";
 import { tabTitle } from "../queue/polish";
 import { titleFor } from "../router";
 import type { Project, RepoName } from "../projects";
-import { useQueue, watchQueue } from "../queue/store";
+import {
+  actOnQueue,
+  getQueueState,
+  useQueue,
+  watchQueue,
+} from "../queue/store";
 import type { Hand } from "../queue/types";
 import { ChatRoom } from "../room/ChatRoom";
 import { JoinGate, JoinGateLoading } from "../room/JoinGate";
@@ -21,6 +26,7 @@ import { DoneSheet } from "../room/sheets/DoneSheet";
 import { EndSessionSheet } from "../room/sheets/EndSessionSheet";
 import { RaiseHandSheet } from "../room/sheets/RaiseHandSheet";
 import { StartSessionSheet } from "../room/sheets/StartSessionSheet";
+import { modelContextOf, offerRoomTools, roomTools } from "../room/webTools";
 import { YourTurnBanner } from "../room/YourTurnBanner";
 
 type Page =
@@ -168,6 +174,16 @@ function MemberRoom({ project, groupId }: MemberRoomProps) {
   useEffect(
     () => watchQueue({ owner, repo, groupId, isMaintainer }),
     [owner, repo, groupId, isMaintainer],
+  );
+
+  // FR-AGENT-5: an agent in this browser can do what the room's buttons do, while the room is open.
+  useEffect(
+    () =>
+      offerRoomTools(
+        modelContextOf(document, navigator),
+        roomTools({ owner, repo }, isMaintainer, getQueueState, actOnQueue),
+      ),
+    [owner, repo, isMaintainer],
   );
 
   const me = auth.status === "signedIn" ? auth.me : null;
