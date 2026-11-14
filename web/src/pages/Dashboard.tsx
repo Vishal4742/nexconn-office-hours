@@ -218,7 +218,7 @@ function ConnectedApps() {
       <p className="apps-lead">
         Add this address as an MCP server in Claude, ChatGPT, Cursor or another
         app that speaks MCP. It asks you to sign in here and to allow it, then
-        it can do what you can.
+        it can do what you can for 30 days, or until you disconnect it.
       </p>
       <div className="mcp-copy">
         <code>{address}</code>
