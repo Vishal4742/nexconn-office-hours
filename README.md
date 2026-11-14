@@ -6,6 +6,16 @@ Built with the [Nexconn](https://www.nexconn.ai) Chat SDK and Chat UI for the Ne
 
 Live at https://office-hours-oss.vercel.app
 
+## Use it from an AI agent
+An agent can do what its person can, with the same checks:
+- **MCP server:** `https://office-hours-oss.vercel.app/mcp`. It speaks Streamable HTTP, the 2026-07-28 revision and the 2025 ones.
+  - Add it in Claude, ChatGPT, Cursor or any app that speaks MCP. It asks you to sign in with GitHub and to allow the app.
+  - The app can then read queues and answers and raise a hand. As a maintainer, it can also run a session.
+  - With Claude Code: `claude mcp add --transport http office-hours https://office-hours-oss.vercel.app/mcp`.
+  - You can disconnect an app from your dashboard.
+- **In the browser:** an open room offers its actions to browser agents through WebMCP (`document.modelContext`).
+- **To read:** the site has a [`/llms.txt`](https://office-hours-oss.vercel.app/llms.txt), each project has `/p/{owner}/{repo}/llms.txt`, and each answer has a Markdown version at `/p/{owner}/{repo}/faq/{slug}.md`. Answer pages carry schema.org `FAQPage` data.
+
 ## Docs
 - `docs/UI.md`: UI direction and screens
 
