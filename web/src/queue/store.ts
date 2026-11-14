@@ -9,12 +9,14 @@ import { useSyncExternalStore } from "react";
 import { errorMessage } from "../api";
 import { loadClient } from "../nexconn/lazy";
 import type { RepoName } from "../projects";
+import { showTurnNotice } from "../room/turnNotice";
 import { loadQueue } from "./api";
 import { makeClock, remember } from "./clock";
 import { keepQueue } from "./keeper";
 import type { Keeper } from "./keeper";
 import { readPing } from "./ping";
 import type { Ping } from "./ping";
+import { turnAlert } from "./turnAlert";
 import type { Hand, Queue } from "./types";
 
 export type QueueState =
@@ -152,7 +154,13 @@ export function watchQueue(room: WatchedRoom): () => void {
   const keeper = keepQueue({
     load: () => loadQueue(room),
     clock,
-    onQueue: (queue) => set({ status: "ready", queue }),
+    onQueue: (queue) => {
+      // A new watch starts at "loading", so the first queue of a room never sounds (FR-NOTIF-2).
+      const before = state.status === "ready" ? state.queue : null;
+      set({ status: "ready", queue });
+      const alert = turnAlert(before, queue);
+      if (alert) showTurnNotice(alert, `${room.owner}/${room.repo}`);
+    },
     onFailure: (failure) =>
       set({ status: "failed", message: errorMessage(failure) }),
     onLatency: logLatency,
