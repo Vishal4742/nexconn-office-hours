@@ -17,13 +17,16 @@ import (
 //go:embed *.html
 var files embed.FS
 
+// dayLayout writes a day the way every page and Markdown version does: "18 Nov 2026".
+const dayLayout = "2 Jan 2006"
+
 var funcs = template.FuncMap{
 	"linked":     linked,
 	"webAddress": webAddress,
 	"start":      start,
 	"count":      count,
 	"iso":        func(t time.Time) string { return t.UTC().Format(time.RFC3339) },
-	"day":        func(t time.Time) string { return t.UTC().Format("2 Jan 2006") },
+	"day":        func(t time.Time) string { return t.UTC().Format(dayLayout) },
 	"when":       func(t time.Time) string { return t.UTC().Format("Mon 2 Jan 2006, 15:04 UTC") },
 }
 
@@ -62,6 +65,12 @@ func (s Site) ListURL() string { return s.Origin + s.ListPath() }
 // EntryPath is one answer's page.
 func (s Site) EntryPath(slug string) string { return s.ListPath() + "/" + slug }
 
+// MarkdownURL is one answer as Markdown, for agents (FR-FAQ-7).
+func (s Site) MarkdownURL(slug string) string { return s.Origin + s.EntryPath(slug) + ".md" }
+
+// LLMsPath is the project's answers as an llms.txt, for agents (FR-FAQ-7).
+func (s Site) LLMsPath() string { return s.RoomPath() + "/llms.txt" }
+
 // List is the page of a project's answers, or of those that match a search.
 type List struct {
 	Site
@@ -85,6 +94,26 @@ func (e Entry) Render(w io.Writer) error { return entryPage.ExecuteTemplate(w, "
 
 // URL is the answer's own address.
 func (e Entry) URL() string { return e.Origin + e.EntryPath(e.Slug) }
+
+// LD is the answer as schema.org data for search engines and agents (FR-FAQ-7): an FAQPage of
+// its one question, since only maintainers answer here. The template writes it as JSON inside its
+// script, escaped there. Who asked is not named, as on the page (FR-HAND-8).
+func (e Entry) LD() map[string]any {
+	answer := map[string]any{
+		"@type":         "Answer",
+		"text":          e.Answer,
+		"url":           e.URL(),
+		"datePublished": e.CreatedAt.UTC().Format(time.RFC3339),
+	}
+	if e.Author.Login != "" {
+		answer["author"] = map[string]any{"@type": "Person", "name": e.Author.Login, "url": "https://github.com/" + url.PathEscape(e.Author.Login)}
+	}
+	question := map[string]any{"@type": "Question", "name": e.Title, "acceptedAnswer": answer}
+	if e.Question != "" {
+		question["text"] = e.Question
+	}
+	return map[string]any{"@context": "https://schema.org", "@type": "FAQPage", "url": e.URL(), "mainEntity": []any{question}}
+}
 
 // issueBodyMax is the longest body an issue link carries, counted as it is written in the
 // address, as in web/src/issueLink.ts: GitHub turns away an address that is too long, and a

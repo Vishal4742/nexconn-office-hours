@@ -85,6 +85,12 @@
       }
     },
     {
+      "source": "/p/:owner/:repo/llms.txt",
+      "destination": {
+        "service": "go"
+      }
+    },
+    {
       "source": "/(.*)",
       "destination": {
         "service": "web"

@@ -6,16 +6,18 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"officehours/pages"
 	"officehours/store"
 )
 
-// The public FAQ pages, rendered from server/pages (FR-FAQ-3). They are the same for everyone, so
-// they never ask who is signed in, and a cache may keep one for a minute; a failure is never
-// kept. An owner, repo or slug that no project or answer can have is a 404 before anything is
-// looked up (NFR-SEC-3).
+// The public FAQ pages, rendered from server/pages (FR-FAQ-3), and their versions for agents: an
+// answer as Markdown, a project's answers as its llms.txt (FR-FAQ-7). They are the same for
+// everyone, so they never ask who is signed in, and a cache may keep one if it asks again first; a
+// failure is never kept. An owner, repo or slug that no project or answer can have is a 404
+// before anything is looked up (NFR-SEC-3).
 
 const (
 	// faqPageListMax bounds the list. ponytail: no paging. Past this the page shows the newest and
@@ -32,23 +34,48 @@ func (d deps) faqListPage(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	query := clip(cleanLine(r.URL.Query().Get("q")), faqPageQueryMax)
-	entries, err := d.faq.FAQList(r.Context(), project.ID, query, faqPageListMax+1)
+	list, err := d.faqPageList(r.Context(), site, project.ID, clip(cleanLine(r.URL.Query().Get("q")), faqPageQueryMax))
 	if err != nil {
 		faqPageFailed(w, r, err)
 		return
+	}
+	faqPageWrite(w, http.StatusOK, list)
+}
+
+// faqLLMsTxt is GET /p/{owner}/{repo}/llms.txt (FR-FAQ-7): the project's answers for agents, the
+// newest first, each linked to its Markdown (llmstxt.org).
+func (d deps) faqLLMsTxt(w http.ResponseWriter, r *http.Request) {
+	site, project, ok := d.faqPageProject(w, r)
+	if !ok {
+		return
+	}
+	list, err := d.faqPageList(r.Context(), site, project.ID, "")
+	if err != nil {
+		faqPageFailed(w, r, err)
+		return
+	}
+	faqTextWrite(w, "text/plain; charset=utf-8", list.LLMsTxt())
+}
+
+// faqPageList is the project's answers that match query, or the newest without one: at most
+// faqPageListMax of them, and whether there were more.
+func (d deps) faqPageList(ctx context.Context, site pages.Site, projectID, query string) (pages.List, error) {
+	entries, err := d.faq.FAQList(ctx, projectID, query, faqPageListMax+1)
+	if err != nil {
+		return pages.List{}, err
 	}
 	cut := len(entries) > faqPageListMax
 	if cut {
 		entries = entries[:faqPageListMax]
 	}
-	faqPageWrite(w, http.StatusOK, pages.List{Site: site, Query: query, Entries: entries, Cut: cut})
+	return pages.List{Site: site, Query: query, Entries: entries, Cut: cut}, nil
 }
 
-// faqEntryPage is GET /p/{owner}/{repo}/faq/{slug}: one answer, with link-preview metadata. A
-// deleted answer is 410 (FR-FAQ-6), one nobody wrote 404.
+// faqEntryPage is GET /p/{owner}/{repo}/faq/{slug}: one answer, with link-preview metadata, or
+// with ".md" after the slug the same answer as Markdown for agents (FR-FAQ-7). A deleted answer
+// is 410 (FR-FAQ-6), one nobody wrote 404.
 func (d deps) faqEntryPage(w http.ResponseWriter, r *http.Request) {
-	slug := r.PathValue("slug")
+	slug, isMarkdown := strings.CutSuffix(r.PathValue("slug"), ".md")
 	if !slugRe.MatchString(slug) {
 		faqPageMissing(w)
 		return
@@ -69,6 +96,8 @@ func (d deps) faqEntryPage(w http.ResponseWriter, r *http.Request) {
 		faqPageWrite(w, http.StatusGone, pages.Notice{Site: site, Title: "This answer was removed",
 			Text: "A maintainer took it down. Search the other answers, or ask your question live in the room.",
 			Link: site.ListPath(), LinkText: "Search answers"})
+	case isMarkdown:
+		faqTextWrite(w, "text/markdown; charset=utf-8", pages.Entry{Site: site, FAQEntry: entry}.Markdown())
 	default:
 		faqPageWrite(w, http.StatusOK, pages.Entry{Site: site, FAQEntry: entry, NextSession: d.faqPageNextSession(r.Context(), project)})
 	}
@@ -155,5 +184,16 @@ func faqPageWrite(w http.ResponseWriter, status int, page interface{ Render(io.W
 	w.WriteHeader(status)
 	if _, err := body.WriteTo(w); err != nil {
 		log.Printf("faq page: write: %v", err)
+	}
+}
+
+// faqTextWrite answers with text for agents: Markdown or an llms.txt. A cache must ask again
+// first, as for the pages, and nosniff keeps a browser from reading the typed text in it as a page.
+func faqTextWrite(w http.ResponseWriter, contentType, text string) {
+	w.Header().Set("Content-Type", contentType)
+	w.Header().Set("Cache-Control", "public, no-cache")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	if _, err := io.WriteString(w, text); err != nil {
+		log.Printf("faq text: write: %v", err)
 	}
 }

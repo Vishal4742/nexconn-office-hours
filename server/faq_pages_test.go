@@ -229,7 +229,8 @@ func TestFAQPageEntry(t *testing.T) {
 			t.Helper()
 			res, body := call(a.mux, "GET", path, "", nil)
 			faqPageCheck(t, name, res, body, http.StatusOK, "Answered live in office hours")
-			if strings.Contains(body, "data-local") || strings.Contains(body, "<script") {
+			// The schema.org data is a script too (FR-FAQ-7); the clock's has no type.
+			if strings.Contains(body, "data-local") || strings.Contains(body, "<script>") {
 				t.Errorf("%s: the page shows a next session", name)
 			}
 		}

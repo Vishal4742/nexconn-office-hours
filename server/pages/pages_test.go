@@ -296,15 +296,20 @@ func TestEntryPage(t *testing.T) {
 		next := time.Date(2026, 11, 19, 17, 0, 0, 0, time.FixedZone("IST", 5*3600+1800))
 		body := render(t, Entry{Site: testSite, FAQEntry: testEntry(), NextSession: next})
 		has(t, body, `<time datetime="2026-11-19T11:30:00Z" data-local>Thu 19 Nov 2026, 11:30 UTC</time>`, "<script>", "toLocaleString")
-		from, to := strings.Index(body, "<script>"), strings.Index(body, "</script>")
-		if from < 0 || to < from || strings.Count(body[from:to], "\n") > 4 {
-			t.Errorf("the page needs one short script, not %q", body[max(from, 0):max(to, 0)])
+		// The clock's script has no type: the one with a type is the schema.org data (FR-FAQ-7).
+		from := strings.Index(body, "<script>")
+		to := strings.Index(body[max(from, 0):], "</script>")
+		if from < 0 || to < 0 || strings.Count(body[from:from+to], "\n") > 4 {
+			t.Errorf("the page needs one short script, not %q", body[max(from, 0):max(from, 0)+max(to, 0)])
 		}
 	})
 
-	t.Run("FR-FAQ-3: without a planned session the page has no script at all", func(t *testing.T) {
+	t.Run("FR-FAQ-3: without a planned session the page runs no script: its only one is data", func(t *testing.T) {
 		body := render(t, Entry{Site: testSite, FAQEntry: testEntry()})
-		lacks(t, body, "<script", "data-local", "Next session")
+		lacks(t, body, "<script>", "data-local", "Next session")
+		if n := strings.Count(body, "<script"); n != 1 || !strings.Contains(body, `<script type="application/ld+json">`) {
+			t.Errorf("%d scripts, want only the schema.org data", n)
+		}
 		has(t, body, `<a class="btn primary" href="/p/PaperPlane/Stash">Join the room</a>`)
 	})
 

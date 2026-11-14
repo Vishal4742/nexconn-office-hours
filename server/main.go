@@ -151,9 +151,11 @@ func newMux(cfg config, d deps) *http.ServeMux {
 	mux.HandleFunc("GET /api/p/{owner}/{repo}/stats", d.projectStats)
 	mux.HandleFunc("GET /api/stats", d.siteStats)
 
-	// The public FAQ pages are rendered here, not by the web app (FR-FAQ-3).
+	// The public FAQ pages are rendered here, not by the web app (FR-FAQ-3), and so are their
+	// versions for agents: {slug}.md and llms.txt (FR-FAQ-7).
 	mux.HandleFunc("GET /p/{owner}/{repo}/faq", d.faqListPage)
 	mux.HandleFunc("GET /p/{owner}/{repo}/faq/{slug}", d.faqEntryPage)
+	mux.HandleFunc("GET /p/{owner}/{repo}/llms.txt", d.faqLLMsTxt)
 	mux.HandleFunc("GET /p/{owner}/{repo}/calendar.ics", d.calendarFeed) // FR-SESS-5
 	return mux
 }
