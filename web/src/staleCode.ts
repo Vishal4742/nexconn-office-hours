@@ -1,21 +1,24 @@
 // After a deployment, a page that was already open asks for script files that are gone: their
 // names carry a hash of the old code, and the server answers with the app's page instead. Vite
-// reports that with a "vite:preloadError" event. The cure is the new page, so the page reloads.
+// reports that with a "vite:preloadError" event. The cure is the new page, so the page reloads,
+// once per tab: the same event comes for a download that keeps failing (a bad network, code an old
+// browser can't run), and reloading for that loops the room and wipes what was being typed.
 const REMEMBERED_AS = "oh_reloaded_at";
-const QUIET_MS = 10_000;
 
-/** Whether the page may reload now: not if it did so a moment ago, or a file that keeps failing would loop it. */
-export function mayReload(lastReloadAt: string | null, now: number): boolean {
-  const last = Number(lastReloadAt);
-  return !lastReloadAt || !Number.isFinite(last) || now - last > QUIET_MS;
+/** Whether the page may reload now: not if this tab reloaded for this already, nor offline. */
+export function mayReload(
+  remembered: string | null,
+  isOnline: boolean,
+): boolean {
+  return isOnline && remembered === null;
 }
 
 export function reloadWhenCodeIsGone(): void {
   window.addEventListener("vite:preloadError", () => {
     try {
-      const now = Date.now();
-      if (!mayReload(sessionStorage.getItem(REMEMBERED_AS), now)) return;
-      sessionStorage.setItem(REMEMBERED_AS, String(now));
+      if (!mayReload(sessionStorage.getItem(REMEMBERED_AS), navigator.onLine))
+        return;
+      sessionStorage.setItem(REMEMBERED_AS, String(Date.now()));
     } catch {
       return; // no storage to remember the reload in: don't risk a loop
     }

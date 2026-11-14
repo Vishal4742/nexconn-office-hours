@@ -145,6 +145,7 @@ export function DevRoom() {
             <EndSessionSheet
               session={session}
               waitingCount={2}
+              answering={null}
               onClose={closeSheet}
             />
           )}
@@ -156,7 +157,12 @@ export function DevRoom() {
             />
           )}
           {sheet === "done" && (
-            <DoneSheet project={project} hand={hand} onClose={closeSheet} />
+            <DoneSheet
+              project={project}
+              hand={hand}
+              isStillAnswering
+              onClose={closeSheet}
+            />
           )}
         </div>
       </div>

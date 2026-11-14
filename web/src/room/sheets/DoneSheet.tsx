@@ -19,6 +19,12 @@ type Props = {
   readonly project: Project;
   /** The hand being answered. */
   readonly hand: Hand;
+  /**
+   * Whether the hand is still the one being answered. A co-maintainer or another tab may skip or
+   * finish it meanwhile: the sheet then keeps what was typed, to copy, and can't publish it
+   * (state-machine audit, bug 8).
+   */
+  readonly isStillAnswering: boolean;
   readonly onClose: () => void;
 };
 
@@ -36,7 +42,7 @@ function askedBy(hand: Hand): string {
  * A maintainer finishes the hand being answered: an answer summary and optional links, which
  * become a FAQ entry (FR-FAQ-1). The props are a contract (notes/phase-2-plan.md).
  */
-export function DoneSheet({ hand, onClose }: Props) {
+export function DoneSheet({ hand, isStillAnswering, onClose }: Props) {
   const id = useId();
   const [answer, setAnswer] = useState("");
   const [linkText, setLinkText] = useState("");
@@ -49,7 +55,7 @@ export function DoneSheet({ hand, onClose }: Props) {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (isSending) return;
+    if (isSending || !isStillAnswering) return;
     setHasTried(true);
     const wrong = answerProblem ? "answer" : linksProblem ? "links" : null;
     if (wrong) {
@@ -113,11 +119,21 @@ export function DoneSheet({ hand, onClose }: Props) {
           )}
         </div>
         <Refused sending={sending} />
+        {!isStillAnswering && (
+          <p className="err" role="alert">
+            This question isn&rsquo;t being answered any more: someone skipped
+            or finished it. Copy your answer if you want to keep it.
+          </p>
+        )}
         <div className="sheet-foot">
           <button type="button" className="btn ghost" onClick={onClose}>
-            Cancel
+            {isStillAnswering ? "Cancel" : "Close"}
           </button>
-          <button type="submit" className="btn primary" disabled={isSending}>
+          <button
+            type="submit"
+            className="btn primary"
+            disabled={isSending || !isStillAnswering}
+          >
             {isSending ? "Publishing…" : "Publish to FAQ"}
           </button>
         </div>

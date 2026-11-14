@@ -13,6 +13,10 @@ import (
 // FR-SESS-5, FR-SESS-7). Ending a session and last call are actions on its queue: they go through
 // Apply (queue.go).
 
+// planFulfilledWithin is how far ahead a planned session counts as the one being started: a
+// session that starts up to a day before its plan, or any time after it, is that plan.
+const planFulfilledWithin = 24 * time.Hour
+
 // StartSession starts a live session (FR-SESS-1) and moves the project's carried hands into it
 // as waiting hands, in their old order (FR-SESS-7). ErrSessionLive when one is live already
 // (FR-SESS-2: the unique index decides, so two starts at the same moment cannot both win), and
@@ -28,13 +32,20 @@ func (s *Store) StartSession(ctx context.Context, n NewSession) (Session, error)
 	// transaction and is then refused by the index, so only one start ever moves the hands below.
 	// The time is the server's own, in whole microseconds, like every time of the queue.
 	var id int64
+	startedAt := time.Now().UTC().Truncate(time.Microsecond)
 	err = tx.QueryRow(ctx, `
 		INSERT INTO sessions (project_id, title, planned_minutes, started_at, started_by, queue_version)
 		VALUES ($1, $2, NULLIF($3, 0), $4, $5, 1)
 		RETURNING id`,
-		n.ProjectID, n.Title, n.PlannedMinutes, time.Now().UTC().Truncate(time.Microsecond), n.HostID).Scan(&id)
+		n.ProjectID, n.Title, n.PlannedMinutes, startedAt, n.HostID).Scan(&id)
 	if err != nil {
 		return Session{}, sessionStartRefusal(err)
+	}
+	// A plan for about now, early or late, is this session: the room, the FAQ pages and the
+	// calendar stop announcing it (FR-SESS-5). A plan further out stays.
+	if _, err := tx.Exec(ctx, `UPDATE projects SET next_session_at = NULL WHERE id = $1 AND next_session_at < $2`,
+		n.ProjectID, startedAt.Add(planFulfilledWithin)); err != nil {
+		return Session{}, fmt.Errorf("store: start session: clear the plan it fulfils: %w", err)
 	}
 	// What was carried waits again. Its place in the line (sort_at) and the time it was raised
 	// stay, so these hands stand before every hand of the new session, in the order they had.
