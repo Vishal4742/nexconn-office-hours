@@ -1,7 +1,10 @@
+import { useState } from "react";
+
 import { withdrawHand } from "../../queue/api";
 import { placeLabel } from "../../queue/place";
 import { actOnQueue } from "../../queue/store";
 import type { Hand } from "../../queue/types";
+import { askToNotify, notifyState } from "../turnNotice";
 import { AskOnce } from "./AskOnce";
 import { StarIcon } from "./icons";
 import { Said } from "./Said";
@@ -19,10 +22,14 @@ type Props = {
 /**
  * Where I am, in the selection box of the landing's "once." (docs/UI.md S3): "3 ahead of you" or
  * "You're next" (FR-QUEUE-5), and Withdraw (FR-HAND-4), which asks once: a hand raised again
- * waits a minute (FR-HAND-6) and goes to the end.
+ * waits a minute (FR-HAND-6) and goes to the end. "Notify me" asks the browser for notifications
+ * on that click, so a page in the background can say "You're next" and "It's your turn"
+ * (FR-NOTIF-2).
  */
 export function MyPlace({ hand, ahead, wait }: Props) {
   const action = useAction();
+  const [notify, setNotify] = useState(notifyState);
+  const askForNotices = async () => setNotify(await askToNotify());
   const withdraw = () =>
     void action.run(() => actOnQueue(() => withdrawHand(hand.id)));
 
@@ -40,6 +47,15 @@ export function MyPlace({ hand, ahead, wait }: Props) {
         </p>
       )}
       <div className="q-btns">
+        {notify === "default" && (
+          <button
+            type="button"
+            className="btn ghost sm"
+            onClick={() => void askForNotices()}
+          >
+            Notify me when it&rsquo;s my turn
+          </button>
+        )}
         <AskOnce
           label="Withdraw"
           question="Withdraw your hand? You lose your place."
@@ -48,6 +64,12 @@ export function MyPlace({ hand, ahead, wait }: Props) {
           onConfirm={withdraw}
         />
       </div>
+      {notify === "granted" && (
+        <p className="q-mine-note">
+          If this page isn&rsquo;t in front, you&rsquo;ll get a notification
+          when you&rsquo;re next and when it&rsquo;s your turn.
+        </p>
+      )}
       <Said doing={action.doing} />
     </section>
   );
