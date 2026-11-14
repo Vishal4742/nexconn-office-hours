@@ -2,8 +2,8 @@ import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
 // The Go server owns /api, /auth, the public FAQ pages (their .md versions too), each project's
-// calendar.ics and llms.txt, and the agents' OAuth sign-in (/oauth and its /.well-known
-// documents). In dev Vite proxies them to :8080,
+// calendar.ics and llms.txt, and the agents' MCP endpoint (/mcp) with its OAuth sign-in (/oauth
+// and its /.well-known documents). In dev Vite proxies them to :8080,
 // so the browser sees one origin, the same as production (see vercel.json). The proxy keeps the
 // browser's Host header (the string shorthand would replace it with localhost:8080): sign-in
 // compares it with APP_URL.
@@ -26,6 +26,7 @@ export default defineConfig({
       "^/p/[^/]+/[^/]+/llms\\.txt$": goServer,
       "^/\\.well-known/oauth-": goServer,
       "^/oauth/": goServer,
+      "^/mcp$": goServer,
     },
   },
 });
