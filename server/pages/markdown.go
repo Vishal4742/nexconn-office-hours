@@ -3,6 +3,8 @@ package pages
 import (
 	"strconv"
 	"strings"
+
+	"officehours/store"
 )
 
 // What agents read (FR-FAQ-7): an answer as Markdown, and a project's answers as its llms.txt
@@ -67,6 +69,12 @@ func (e Entry) Markdown() string {
 	return b.String()
 }
 
+// AnswerLine is one answer in a list for agents: its title linked to its Markdown, and how it
+// begins. The llms.txt and the agents' search_answers write the same line.
+func (s Site) AnswerLine(e store.FAQEntry) string {
+	return "- [" + mdLine(e.Title) + "](" + s.MarkdownURL(e.Slug) + "): " + mdLine(start(e.Answer, llmsExcerptMax))
+}
+
 // LLMsTxt is the project's answers as its llms.txt: what they are, where to ask live, and each
 // answer linked to its Markdown, with how it begins.
 func (l List) LLMsTxt() string {
@@ -82,7 +90,7 @@ func (l List) LLMsTxt() string {
 		return b.String()
 	}
 	for _, e := range l.Entries {
-		b.WriteString("- [" + mdLine(e.Title) + "](" + l.MarkdownURL(e.Slug) + "): " + mdLine(start(e.Answer, llmsExcerptMax)) + "\n")
+		b.WriteString(l.AnswerLine(e) + "\n")
 	}
 	if l.Cut {
 		b.WriteString("\nThese are the newest " + strconv.Itoa(len(l.Entries)) + " answers. To search all of them, open " + l.ListURL() + "?q= followed by your words.\n")
