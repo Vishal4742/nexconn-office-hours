@@ -285,6 +285,23 @@
   margin: 2px 0 0;
   accent-color: var(--blue);
 }
+/* "When: Now / Later" in the Start a session sheet. */
+.sheet-when {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+.sheet-when legend {
+  font-weight: 600;
+  padding: 0;
+  margin-bottom: 8px;
+}
+.sheet-when-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+}
 .btn.sheet-ink {
   background: var(--ink);
   color: var(--paper);

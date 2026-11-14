@@ -1,5 +1,6 @@
 // What each field of the sheets accepts, counted the way the server counts (server/validate.go),
 // so a sheet can say what is wrong before anything is sent. The server still checks everything.
+import { fromLocalInput } from "../../queue/times";
 
 /** A field's length in characters, after cleaning. */
 export type Limit = { readonly min: number; readonly max: number };
@@ -46,6 +47,23 @@ export function lengthProblem(
   }
   if (count > max) {
     return `Keep it to ${amount(max)} characters; this has ${amount(count)}.`;
+  }
+  return null;
+}
+
+/**
+ * FR-SESS-5: why a planned time from an <input type="datetime-local"> can't be used, by the
+ * server's rules (sessionNextTime in server/api_sessions.go); null when it can. `now` is the
+ * page's clock in milliseconds.
+ */
+export function scheduleProblem(value: string, now: number): string | null {
+  const at = fromLocalInput(value);
+  if (!at) return "Pick a day and a time.";
+  if (at.getTime() <= now) return "Pick a time that hasn't passed yet.";
+  const yearAway = new Date(now);
+  yearAway.setFullYear(yearAway.getFullYear() + 1);
+  if (at.getTime() >= yearAway.getTime()) {
+    return "Pick a time less than a year away.";
   }
   return null;
 }
