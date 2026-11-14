@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -370,5 +371,57 @@ func TestRolesComeFromTheTables(t *testing.T) {
 		if err != nil || isMaintainer != tt.isMaintainer {
 			t.Errorf("%s: IsMaintainer = %v, %v; want %v", tt.name, isMaintainer, err, tt.isMaintainer)
 		}
+	}
+}
+
+func TestMute(t *testing.T) {
+	pool := testDB(t)
+	people(t, pool)
+	s, ctx := New(pool), context.Background()
+	if _, _, err := s.CreateProject(ctx, Project{ID: "aaaa", GitHubID: 1001, Owner: "PaperPlane", Repo: "Stash"}, "gh1"); err != nil {
+		t.Fatalf("CreateProject: %v", err)
+	}
+	if err := s.AddMember(ctx, "aaaa", "gh2"); err != nil {
+		t.Fatalf("AddMember: %v", err)
+	}
+	mutedUntil := func(userID string) time.Time {
+		t.Helper()
+		until, err := s.MutedUntil(ctx, "aaaa", userID)
+		if err != nil {
+			t.Fatalf("MutedUntil(%s): %v", userID, err)
+		}
+		return until
+	}
+
+	// FR-MOD-1: nobody is muted until a maintainer says so, and someone outside the room never is.
+	if got := mutedUntil("gh2"); !got.IsZero() {
+		t.Fatalf("a member nobody muted is muted until %v, want the zero time", got)
+	}
+	if got := mutedUntil("gh3"); !got.IsZero() {
+		t.Fatalf("someone outside the room is muted until %v, want the zero time", got)
+	}
+
+	// The end of a mute is kept as the instant it is, and a later mute replaces it.
+	for _, end := range []time.Time{
+		time.Date(2026, 11, 14, 12, 0, 0, 0, time.UTC),
+		time.Date(2026, 11, 14, 9, 30, 0, 0, time.FixedZone("IST", 19800)),
+	} {
+		if err := s.Mute(ctx, "aaaa", "gh2", end); err != nil {
+			t.Fatalf("Mute: %v", err)
+		}
+		if got := mutedUntil("gh2"); !got.Equal(end) {
+			t.Fatalf("after a mute until %v, MutedUntil = %v", end, got)
+		}
+	}
+	if got := mutedUntil("gh1"); !got.IsZero() {
+		t.Fatalf("muting gh2 muted gh1 until %v", got)
+	}
+
+	// Muting someone who is not in the room adds no member.
+	if err := s.Mute(ctx, "aaaa", "gh3", time.Now()); err != nil {
+		t.Fatalf("Mute of someone outside the room: %v", err)
+	}
+	if n := count(t, pool, `SELECT count(*) FROM members WHERE project_id = 'aaaa' AND user_id = 'gh3'`); n != 0 {
+		t.Fatalf("muting someone outside the room made them a member")
 	}
 }

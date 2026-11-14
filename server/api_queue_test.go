@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -316,6 +317,7 @@ func TestDescribeQueue(t *testing.T) {
 			{Hand: queue.Hand{ID: 99, AuthorID: otherID, Title: "Buy cheap watches", Details: "spam.example", Status: queue.Removed, ClosedAt: at}, Author: person(otherID)},
 		},
 		MedianAnswer: 150 * time.Second,
+		Removed:      []int64{99, 41},
 	}
 
 	t.Run("FR-QUEUE-4: a member sees every hand, which one is theirs and which they +1'd", func(t *testing.T) {
@@ -348,6 +350,11 @@ func TestDescribeQueue(t *testing.T) {
 				t.Errorf("as %s the removed hand is %+v, want its id and status and no text", viewer, gone)
 			}
 		}
+		// Its card is still in the chat, with its words: the room hides them by these ids, the
+		// earlier sessions' included.
+		if got := describeQueue(snap, askerID, at).RemovedHandIDs; !slices.Equal(got, []string{"99", "41"}) {
+			t.Errorf("removedHandIds = %v, want [99 41]", got)
+		}
 	})
 
 	t.Run("a visitor nobody knows owns no hand and +1'd none", func(t *testing.T) {
@@ -363,7 +370,7 @@ func TestDescribeQueue(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		for _, want := range []string{`"session":null`, `"hands":[]`, `"done":[]`, `"nextSessionAt":null`, `"medianAnswerSeconds":0`} {
+		for _, want := range []string{`"session":null`, `"hands":[]`, `"done":[]`, `"nextSessionAt":null`, `"medianAnswerSeconds":0`, `"removedHandIds":[]`} {
 			if !strings.Contains(string(text), want) {
 				t.Errorf("the JSON has no %s: %s", want, text)
 			}

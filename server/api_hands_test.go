@@ -389,6 +389,38 @@ func TestHandsRefusals(t *testing.T) {
 	}
 }
 
+func TestHandsMuted(t *testing.T) {
+	t.Run("FR-MOD-1, AT-18: a muted member can't raise a hand, so the bot never says their words", func(t *testing.T) {
+		a := handsApp(t)
+		a.projects.muted[queueProject+" "+askerID] = time.Now().Add(9*time.Minute + 30*time.Second)
+		res, body := handsCall(t, a, handsRaisePath, askerID)
+		refused(t, "a muted member", res, body, http.StatusForbidden, "A maintainer muted you in this room. You can raise a hand again in 10 min.")
+		if len(a.queue.asked) != 0 || a.chat.types() != "" {
+			t.Errorf("a muted member's hand reached the rules (%+v) or the room (%q)", a.queue.asked, a.chat.types())
+		}
+	})
+
+	t.Run("FR-MOD-1: once the mute is over, and for anyone else, a hand goes up as usual", func(t *testing.T) {
+		a := handsApp(t)
+		a.projects.muted[queueProject+" "+askerID] = time.Now().Add(-time.Second)
+		a.projects.muted[queueProject+" "+otherID] = time.Now().Add(time.Hour)
+		res, body := handsCall(t, a, handsRaisePath, askerID)
+		if res.StatusCode != http.StatusOK || handsAsked(t, a).Kind != queue.Raise {
+			t.Errorf("a member whose mute is over: status %d body %s, want the hand raised", res.StatusCode, body)
+		}
+	})
+
+	t.Run("NFR-OPS-2: a store that can't say whether they are muted raises nothing", func(t *testing.T) {
+		a := handsApp(t)
+		a.projects.muteErr = errors.New("connection reset by 10.0.0.5:5432")
+		res, body := handsCall(t, a, handsRaisePath, askerID)
+		refused(t, "a store that fails", res, body, http.StatusInternalServerError, "Something went wrong on our side.")
+		if strings.Contains(body, "10.0.0.5") || len(a.queue.asked) != 0 {
+			t.Errorf("the store's error reached the caller (%s) or the rules were asked (%+v)", body, a.queue.asked)
+		}
+	})
+}
+
 func TestHandsOutsiders(t *testing.T) {
 	asIs := func(*http.Request) {}
 	otherSite := func(r *http.Request) { r.Header.Set("Origin", "https://evil.example") }

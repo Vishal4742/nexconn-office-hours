@@ -551,6 +551,12 @@ func TestMuteMember(t *testing.T) {
 			if len(a.queue.asked) != 0 || a.chat.types() != "" {
 				t.Errorf("%s: a mute changed the queue (%+v) or was said in the room (%q)", c.body, a.queue.asked, a.chat.types())
 			}
+			// AT-18: the server keeps the mute's end too, because a raised hand reaches the room
+			// through the bot, which no mute in the chat stops.
+			want := time.Now().Add(time.Duration(c.minutes) * time.Minute)
+			if got := a.projects.muted[queueProject+" "+askerID]; got.Sub(want).Abs() > time.Minute {
+				t.Errorf("%s: the mute is kept until %v, want about %v", c.body, got, want)
+			}
 		}
 	})
 
@@ -625,6 +631,15 @@ func TestMuteMember(t *testing.T) {
 		res, body = call(a.mux, "POST", path, `{"userId":"gh2","minutes":10}`, a.as(t, hostID))
 		refused(t, "a store that fails", res, body, http.StatusInternalServerError, "Something went wrong")
 		actionUntouched(t, "a store that fails", a)
+
+		// The server could not keep the mute: the chat is not asked, and the maintainer mutes again.
+		a = actionApp(t)
+		a.projects.muteErr = errors.New("connection reset")
+		res, body = call(a.mux, "POST", path, `{"userId":"gh2","minutes":10}`, a.as(t, hostID))
+		refused(t, "a mute the store can't keep", res, body, http.StatusInternalServerError, "Something went wrong")
+		if len(a.chat.muted) != 0 {
+			t.Errorf("the chat muted %v although the server kept no mute", a.chat.muted)
+		}
 	})
 }
 
