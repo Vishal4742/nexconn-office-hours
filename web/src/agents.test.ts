@@ -1,7 +1,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError } from "./api";
-import { disconnectAgent, lastUsedLabel, listAgents } from "./agents";
+import {
+  claudeCodeCommand,
+  disconnectAgent,
+  lastUsedLabel,
+  listAgents,
+  mcpAddress,
+} from "./agents";
 
 function stubFetch(status: number, body: string) {
   const fetchMock = vi.fn(
@@ -68,6 +74,16 @@ describe("disconnectAgent (FR-AGENT-3)", () => {
     );
     await expect(disconnectAgent("x")).rejects.toThrow(
       "There is no such connected app.",
+    );
+  });
+});
+
+describe("where an app connects (FR-AGENT-1)", () => {
+  it("is this site's own /mcp, and Claude Code's command names it", () => {
+    const address = mcpAddress("https://office-hours-oss.vercel.app");
+    expect(address).toBe("https://office-hours-oss.vercel.app/mcp");
+    expect(claudeCodeCommand(address)).toBe(
+      "claude mcp add --transport http office-hours https://office-hours-oss.vercel.app/mcp",
     );
   });
 });
