@@ -37,10 +37,25 @@ func parse(page string) *template.Template {
 }
 
 var (
-	listPage   = parse("list.html")
-	entryPage  = parse("entry.html")
-	noticePage = parse("notice.html")
+	listPage    = parse("list.html")
+	entryPage   = parse("entry.html")
+	noticePage  = parse("notice.html")
+	consentPage = parse("consent.html")
 )
+
+// Consent is the page where a person lets an agent's app act as them, or says no (FR-AGENT-2).
+type Consent struct {
+	Site                  // zero: the page is about no project
+	App            string // what the app called itself: text, not proof
+	ReturnsTo      string // the host it sends the person back to
+	OnYourComputer bool   // that host is this computer, where any app could have started this
+	Login          string // who the app will act as
+	AvatarURL      string
+	Form           string // the sealed request the buttons send back
+}
+
+// Render writes the page.
+func (c Consent) Render(w io.Writer) error { return consentPage.ExecuteTemplate(w, "page", c) }
 
 // Site is the project a page is about: its name as it was registered, and our own origin, which
 // link previews and issues point at (never the Host a request named). A zero Site is no project.

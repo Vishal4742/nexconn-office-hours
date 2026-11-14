@@ -89,6 +89,7 @@ type deps struct {
 	starts   sessionStore // shapes.go: starting and planning sessions
 	faq      faqStore     // shapes.go
 	stats    statsStore   // shapes.go
+	grants   grantStore   // oauth.go: the agents people connected
 }
 
 func newMux(cfg config, d deps) *http.ServeMux {
@@ -150,6 +151,23 @@ func newMux(cfg config, d deps) *http.ServeMux {
 	mux.HandleFunc("POST /api/faq/{id}/delete", d.deleteFAQ)
 	mux.HandleFunc("GET /api/p/{owner}/{repo}/stats", d.projectStats)
 	mux.HandleFunc("GET /api/stats", d.siteStats)
+
+	// Agents (FR-AGENT-2, FR-AGENT-3): the OAuth sign-in an MCP app goes through, its metadata
+	// (which the MCP Inspector's page fetches across origins, hence the preflights), and a
+	// person's list of connected agents with its Disconnect.
+	for _, path := range []string{resourceMetadataPath, resourceMetadataPath + mcpPath} {
+		mux.HandleFunc("GET "+path, d.oauthResourceMetadata)
+	}
+	mux.HandleFunc("GET "+serverMetadataPath, d.oauthServerMetadata)
+	mux.HandleFunc("POST "+registerPath, d.oauthRegister)
+	mux.HandleFunc("GET "+authorizePath, d.oauthAuthorize)
+	mux.HandleFunc("POST "+authorizePath, d.oauthDecide)
+	mux.HandleFunc("POST "+tokenPath, d.oauthToken)
+	for _, path := range []string{resourceMetadataPath, resourceMetadataPath + mcpPath, serverMetadataPath, registerPath, tokenPath} {
+		mux.HandleFunc("OPTIONS "+path, corsPreflight)
+	}
+	mux.HandleFunc("GET /api/me/agents", d.myAgents)
+	mux.HandleFunc("POST /api/me/agents/{id}/disconnect", d.disconnectAgent)
 
 	// The public FAQ pages are rendered here, not by the web app (FR-FAQ-3), and so are their
 	// versions for agents: {slug}.md and llms.txt (FR-FAQ-7).
@@ -245,7 +263,7 @@ func newDeps(ctx context.Context, cfg config) (deps, error) {
 	}
 	if db != nil {
 		d.db, d.users, d.projects = db, db, db
-		d.queue, d.starts, d.faq, d.stats = db, db, db, db
+		d.queue, d.starts, d.faq, d.stats, d.grants = db, db, db, db, db
 	}
 	return d, nil
 }

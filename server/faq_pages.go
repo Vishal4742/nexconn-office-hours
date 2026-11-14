@@ -164,26 +164,31 @@ func faqPageFailed(w http.ResponseWriter, r *http.Request, err error) {
 		Text: "We couldn't read the answers just now. Try again in a moment."})
 }
 
-// faqPageWrite renders a page whole before it answers, so a template that fails is a 500 and
-// never half a page. A cache must ask again before it shows a page (no-cache), so an answer a
-// maintainer deleted is gone at once; a failure is never kept at all.
+// faqPageWrite writes a public page. A cache must ask again before it shows one (no-cache), so an
+// answer a maintainer deleted is gone at once; a failure is never kept at all.
 func faqPageWrite(w http.ResponseWriter, status int, page interface{ Render(io.Writer) error }) {
-	var body bytes.Buffer
-	if err := page.Render(&body); err != nil {
-		log.Printf("faq page: render: %v", err)
-		w.Header().Set("Cache-Control", "no-store")
-		http.Error(w, "Something went wrong on our side. Try again in a moment.", http.StatusInternalServerError)
-		return
-	}
 	cache := "public, no-cache"
 	if status >= http.StatusInternalServerError {
 		cache = "no-store"
+	}
+	writePage(w, status, page, cache)
+}
+
+// writePage renders a page whole before it answers, so a template that fails is a 500 and never
+// half a page.
+func writePage(w http.ResponseWriter, status int, page interface{ Render(io.Writer) error }, cache string) {
+	var body bytes.Buffer
+	if err := page.Render(&body); err != nil {
+		log.Printf("page: render: %v", err)
+		w.Header().Set("Cache-Control", "no-store")
+		http.Error(w, "Something went wrong on our side. Try again in a moment.", http.StatusInternalServerError)
+		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", cache)
 	w.WriteHeader(status)
 	if _, err := body.WriteTo(w); err != nil {
-		log.Printf("faq page: write: %v", err)
+		log.Printf("page: write: %v", err)
 	}
 }
 

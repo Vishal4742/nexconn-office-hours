@@ -91,6 +91,30 @@
       }
     },
     {
+      "source": "/.well-known/oauth-protected-resource",
+      "destination": {
+        "service": "go"
+      }
+    },
+    {
+      "source": "/.well-known/oauth-protected-resource/mcp",
+      "destination": {
+        "service": "go"
+      }
+    },
+    {
+      "source": "/.well-known/oauth-authorization-server",
+      "destination": {
+        "service": "go"
+      }
+    },
+    {
+      "source": "/oauth/(.*)",
+      "destination": {
+        "service": "go"
+      }
+    },
+    {
       "source": "/(.*)",
       "destination": {
         "service": "web"

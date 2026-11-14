@@ -37,11 +37,16 @@ type userStore interface {
 	UpsertUser(ctx context.Context, u store.User) error
 }
 
-// safeNext keeps only the two places a sign-in may land: the dashboard, or a project's page
-// (FR-PROJ-3). Anything else, including every absolute URL, becomes the dashboard.
+// safeNext keeps only the places a sign-in may land: the dashboard, a project's page (FR-PROJ-3),
+// or an agent's consent page with its query (FR-AGENT-2). Anything else, including every absolute
+// URL, becomes the dashboard.
 func safeNext(next string) string {
 	parts := strings.Split(next, "/")
 	if len(parts) == 4 && parts[0] == "" && parts[1] == "p" && validOwnerRepo(parts[2], parts[3]) {
+		return next
+	}
+	if u, err := url.Parse(next); err == nil && u.Scheme == "" && u.Host == "" && u.Path == authorizePath &&
+		u.Fragment == "" && strings.HasPrefix(next, authorizePath) && !strings.Contains(next, `\`) {
 		return next
 	}
 	return "/dashboard"

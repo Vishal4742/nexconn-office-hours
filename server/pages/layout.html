@@ -139,6 +139,14 @@ article h1, .notice h1 { margin-top: 24px; font-size: clamp(28px, 7vw, 36px); li
 .next h2 { font-size: 16px; line-height: 24px; font-weight: 600; }
 .notice { padding-top: 96px; text-align: center; }
 .notice p { margin-top: 12px; }
+.consent { padding-top: 64px; }
+.consent h1 { margin-top: 8px; font-size: clamp(28px, 7vw, 36px); line-height: 1.15; letter-spacing: -0.022em; }
+.consent .card { margin-top: 32px; padding: 20px 24px; }
+.consent .card h2 { font-size: 16px; line-height: 24px; font-weight: 600; }
+.consent .card ul { display: grid; gap: 8px; margin: 12px 0 16px; padding-left: 20px; list-style: disc; }
+.consent .returns { margin-top: 24px; }
+.consent form { margin-top: 24px; }
+.consent .btn[disabled] { opacity: 0.5; cursor: default; }
 @media (max-width: 560px) {
   .top { gap: 12px; padding: 0 16px; }
   .brand span { display: none; }
@@ -148,6 +156,8 @@ article h1, .notice h1 { margin-top: 24px; font-size: clamp(28px, 7vw, 36px); li
   .cards .card { grid-template-columns: minmax(0, 1fr); }
   .by { grid-column: auto; grid-row: auto; }
   .notice { padding-top: 48px; }
+  .consent { padding-top: 32px; }
+  .consent .card { padding: 16px; }
 }
 </style>
 </head>
