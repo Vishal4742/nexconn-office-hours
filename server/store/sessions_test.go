@@ -374,6 +374,60 @@ func TestSessionSetNext(t *testing.T) {
 	}
 }
 
+// State-machine audit bug 6: a start fulfils a plan made for about now, early or late, so the room,
+// the FAQ pages and the calendar stop announcing it. A plan for another day stays.
+func TestSessionStartFulfilsThePlanForNow(t *testing.T) {
+	pool := testDB(t)
+	s, ctx := sessionSeed(t, pool), context.Background()
+	plan := func(projectID string, at time.Time) {
+		t.Helper()
+		if err := s.SetNextSession(ctx, projectID, at); err != nil {
+			t.Fatalf("SetNextSession: %v", err)
+		}
+	}
+	planned := func(projectID string) *time.Time {
+		t.Helper()
+		var at *time.Time
+		if err := pool.QueryRow(ctx, `SELECT next_session_at FROM projects WHERE id = $1`, projectID).Scan(&at); err != nil {
+			t.Fatalf("read next_session_at: %v", err)
+		}
+		return at
+	}
+	start := func(projectID, hostID string) {
+		t.Helper()
+		if _, err := s.StartSession(ctx, NewSession{ProjectID: projectID, HostID: hostID, Title: "Office hours"}); err != nil {
+			t.Fatalf("StartSession: %v", err)
+		}
+		sessionEnd(t, pool, projectID)
+	}
+
+	// Planned for 6:00, started at 5:30: this was it.
+	plan("aaaa", time.Now().Add(30*time.Minute))
+	start("aaaa", "gh1")
+	if got := planned("aaaa"); got != nil {
+		t.Errorf("a session that started half an hour early left its plan: %v", got)
+	}
+	// Planned for an hour ago, started late: this was it too.
+	plan("aaaa", time.Now().Add(-time.Hour))
+	start("aaaa", "gh1")
+	if got := planned("aaaa"); got != nil {
+		t.Errorf("a late session left its plan: %v", got)
+	}
+	// Planned for next week, an extra session now: next week stays.
+	nextWeek := time.Now().Add(7 * 24 * time.Hour).UTC().Truncate(time.Microsecond)
+	plan("aaaa", nextWeek)
+	start("aaaa", "gh1")
+	if got := planned("aaaa"); got == nil || !got.Equal(nextWeek) {
+		t.Errorf("an extra session cleared next week's plan: %v", got)
+	}
+	// Another project's plan is its own.
+	plan("bbbb", time.Now().Add(10*time.Minute))
+	start("aaaa", "gh1")
+	if got := planned("bbbb"); got == nil {
+		t.Error("a start in one project cleared another project's plan")
+	}
+}
+
 func TestSessionRemoveMaintainer(t *testing.T) {
 	pool := testDB(t)
 	s, ctx := sessionSeed(t, pool), context.Background()
