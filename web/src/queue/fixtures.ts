@@ -79,6 +79,7 @@ const empty: Queue = {
   medianAnswerSeconds: 0,
   serverTime: NOW,
   removedHandIds: [],
+  mutedUntil: null,
 };
 
 const answered = hand("100", liwen, {
@@ -149,6 +150,14 @@ export const queues = {
       hand("104", diego, { isMine: true }),
       ...waiting,
     ],
+  },
+  /** Live, and a maintainer muted me: the chat says until when (FR-MOD-1). Far ahead, so a preview shows it. */
+  muted: {
+    ...empty,
+    session: liveSession,
+    hands: [beingAnswered, ...waiting],
+    done: [answered],
+    mutedUntil: "2099-11-14T11:55:00.000Z",
   },
   /** Live, it is my turn and I have not said "I'm here" yet. */
   myTurn: {

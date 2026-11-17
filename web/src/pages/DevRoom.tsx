@@ -6,6 +6,7 @@ import type { Project } from "../projects";
 import { ana, diego, liwen, mia, queues } from "../queue/fixtures";
 import type { QueueState } from "../queue/store";
 import type { Hand, QueuePerson } from "../queue/types";
+import { MutedNotice } from "../room/MutedNotice";
 import { QueuePanel } from "../room/QueuePanel";
 import { RoomHead } from "../room/RoomHead";
 import type { RoomTab } from "../room/RoomHead";
@@ -129,6 +130,7 @@ export function DevRoom() {
           />
           <YourTurnBanner queue={queue} />
           <section className="chat" aria-label="Chat">
+            <MutedNotice until={queue?.mutedUntil ?? null} />
             <p className="chat-note">The chat is not part of this preview.</p>
           </section>
           <QueuePanel

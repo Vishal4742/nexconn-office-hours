@@ -226,6 +226,7 @@ function MemberRoom({ project, groupId }: MemberRoomProps) {
         owner={owner}
         repo={repo}
         onMembers={setMembers}
+        mutedUntil={queue?.mutedUntil ?? null}
       />
       <QueuePanel
         project={project}

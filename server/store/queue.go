@@ -55,6 +55,24 @@ func scanSession(row pgx.Row) (Session, error) {
 	return s, nil
 }
 
+// RaiseVersion moves the room's queue to its next version: the live session's, else the last
+// one's, as Queue picks it. The ping that follows makes every page that holds the queue ask for
+// it again; this is how a mute reaches the muted member's page (FR-MOD-1). sessionID is 0 when
+// the project never had a session.
+func (s *Store) RaiseVersion(ctx context.Context, projectID string) (sessionID int64, version int, err error) {
+	err = s.pool.QueryRow(ctx, `
+		UPDATE sessions SET queue_version = queue_version + 1
+		WHERE id = (SELECT id FROM sessions WHERE project_id = $1 ORDER BY (status = 'live') DESC, id DESC LIMIT 1)
+		RETURNING id, queue_version`, projectID).Scan(&sessionID, &version)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return 0, 0, nil
+	}
+	if err != nil {
+		return 0, 0, fmt.Errorf("store: raise the queue's version: %w", err)
+	}
+	return sessionID, version, nil
+}
+
 // ErrNoSession means a queue action named a session that does not exist.
 var ErrNoSession = errors.New("store: no such session")
 

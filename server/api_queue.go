@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"math"
 	"net/http"
 	"strconv"
@@ -25,6 +26,7 @@ type queueStore interface {
 	Queue(ctx context.Context, projectID string) (store.Snapshot, error)
 	Apply(ctx context.Context, sessionID int64, a queue.Action) (store.Applied, error)
 	Done(ctx context.Context, sessionID int64, a queue.Action, draft store.FAQDraft) (store.Applied, store.FAQEntry, error)
+	RaiseVersion(ctx context.Context, projectID string) (sessionID int64, version int, err error)
 	ProjectOfSession(ctx context.Context, sessionID int64) (projectID string, found bool, err error)
 	ProjectOfHand(ctx context.Context, handID int64) (projectID string, sessionID int64, found bool, err error)
 	People(ctx context.Context, userIDs []string) ([]store.Person, error)
@@ -237,7 +239,22 @@ func (d deps) answerQueue(w http.ResponseWriter, r *http.Request, projectID, vie
 		writeError(w, queueRefusal(err))
 		return
 	}
-	writeJSON(w, http.StatusOK, envelope{OK: true, Data: describeQueue(snap, viewerID, now())})
+	writeJSON(w, http.StatusOK, envelope{OK: true, Data: describeQueue(snap, viewerID, now(), d.viewerMute(r.Context(), projectID, viewerID))})
+}
+
+// viewerMute is when the viewer's mute in the project's room ends, for every queue they are
+// answered with, an action's answer too: the room tells them above the chat (FR-MOD-1). A lookup
+// that fails costs only the notice, never the queue.
+func (d deps) viewerMute(ctx context.Context, projectID, viewerID string) time.Time {
+	if viewerID == "" {
+		return time.Time{}
+	}
+	until, err := d.projects.MutedUntil(ctx, projectID, viewerID)
+	if err != nil {
+		log.Printf("queue of %s: mute of the viewer: %v", projectID, err)
+		return time.Time{}
+	}
+	return until
 }
 
 // queuePage is GET /api/p/{owner}/{repo}/queue: what the room shows about the session and its
@@ -258,10 +275,13 @@ func (d deps) queuePage(w http.ResponseWriter, r *http.Request) {
 		writeError(w, queueRefusal(err))
 		return
 	}
-	if !project.IsMember {
+	var mutedUntil time.Time
+	if project.IsMember {
+		mutedUntil = d.viewerMute(r.Context(), project.ID, viewer.ID)
+	} else {
 		snap.Open, snap.Closed = nil, nil
 	}
-	writeJSON(w, http.StatusOK, envelope{OK: true, Data: describeQueue(snap, viewer.ID, now())})
+	writeJSON(w, http.StatusOK, envelope{OK: true, Data: describeQueue(snap, viewer.ID, now(), mutedUntil)})
 }
 
 // The queue as the API describes it to one caller. web/src/queue/types.ts is the same shape.
@@ -314,6 +334,7 @@ type queueJSON struct {
 	MedianAnswerSeconds int          `json:"medianAnswerSeconds"` // 0 until two hands were answered (FR-QUEUE-10)
 	ServerTime          time.Time    `json:"serverTime"`          // so a page can count minutes without trusting its own clock
 	RemovedHandIDs      []string     `json:"removedHandIds"`      // in every session, so old cards hide their words (FR-MOD-1)
+	MutedUntil          *time.Time   `json:"mutedUntil"`          // the viewer's own mute in the room while it runs, else null (FR-MOD-1)
 }
 
 func timeOrNull(t time.Time) *time.Time {
@@ -359,9 +380,9 @@ func describeHands(hands []store.QueueHand, viewerID string) []handJSON {
 	return out
 }
 
-// describeQueue is a snapshot as one viewer sees it. Only "is this mine" and "did I +1 this"
-// depend on the viewer.
-func describeQueue(snap store.Snapshot, viewerID string, at time.Time) queueJSON {
+// describeQueue is a snapshot as one viewer sees it. Only "is this mine", "did I +1 this" and the
+// viewer's own mute (mutedUntil, which ends at or before `at` count as none) depend on the viewer.
+func describeQueue(snap store.Snapshot, viewerID string, at, mutedUntil time.Time) queueJSON {
 	out := queueJSON{
 		Hands: describeHands(snap.Open, viewerID), Done: describeHands(snap.Closed, viewerID),
 		NextSessionAt:       timeOrNull(snap.NextSessionAt),
@@ -371,6 +392,10 @@ func describeQueue(snap store.Snapshot, viewerID string, at time.Time) queueJSON
 	}
 	for _, id := range snap.Removed {
 		out.RemovedHandIDs = append(out.RemovedHandIDs, idText(id))
+	}
+	if mutedUntil.After(at) {
+		until := mutedUntil.UTC()
+		out.MutedUntil = &until
 	}
 	if s := snap.Session; s != nil {
 		out.Session = &sessionJSON{
