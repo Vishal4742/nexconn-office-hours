@@ -172,6 +172,18 @@ export const queues = {
     hands: waiting,
     done: [answered],
   },
+  /** The session ended carrying my question over: I can take it back (FR-HAND-4). */
+  endedMineCarried: {
+    ...empty,
+    session: {
+      ...liveSession,
+      live: false,
+      endedAt: "2026-11-14T12:15:00.000Z",
+      version: 31,
+    },
+    done: [hand("104", diego, { status: "carried", isMine: true }), answered],
+    nextSessionAt: "2026-11-19T11:30:00.000Z",
+  },
   /** The session ended: one answered, one carried over, one not reached, one removed. */
   ended: {
     ...empty,

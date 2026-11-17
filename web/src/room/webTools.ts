@@ -293,7 +293,7 @@ export function roomTools(
     handTool(
       "withdraw_hand",
       "Withdraw a hand",
-      "Take your waiting hand back. It loses its place.",
+      "Take your waiting hand back, or the question an ended session carries over to the next one. It loses its place.",
       withdrawHand,
       "Your hand is withdrawn.",
       { consequentialHint: true },

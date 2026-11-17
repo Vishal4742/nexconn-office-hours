@@ -25,6 +25,7 @@ describe("liveState", () => {
       muted: "Live",
       myTurn: "Live",
       lastCall: "Last call",
+      endedMineCarried: "Not live",
       ended: "Not live",
     });
   });
@@ -91,6 +92,7 @@ describe("metaLine", () => {
       muted: "Nº 3 · 45 min with @mia-k · 25 min left",
       myTurn: "Nº 3 · 45 min with @mia-k · 25 min left",
       lastCall: "Nº 3 · 45 min with @mia-k · 25 min left",
+      endedMineCarried: "Nº 3 · with @mia-k · ended after 45 min",
       ended: "Nº 3 · with @mia-k · ended after 45 min",
     });
   });
