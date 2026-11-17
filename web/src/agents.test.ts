@@ -39,9 +39,10 @@ describe("listAgents (FR-AGENT-3)", () => {
       JSON.stringify({ ok: true, data: [claude, fresh] }),
     );
     await expect(listAgents()).resolves.toEqual([claude, fresh]);
-    expect(fetchMock).toHaveBeenCalledWith("/api/me/agents", {
-      method: "GET",
-    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/me/agents",
+      expect.objectContaining({ method: "GET" }),
+    );
   });
 
   it("refuses a shape it doesn't know, instead of showing half of it", async () => {

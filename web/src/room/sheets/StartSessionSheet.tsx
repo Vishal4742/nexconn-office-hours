@@ -117,6 +117,7 @@ export function StartSessionSheet({ project, onClose }: Props) {
     <Sheet
       title={isLater ? "Schedule a session" : "Start a session"}
       onClose={onClose}
+      isBusy={isSending}
     >
       <p className="sheet-lead">
         {isLater
@@ -203,7 +204,13 @@ export function StartSessionSheet({ project, onClose }: Props) {
         )}
         <Refused sending={sending} />
         <div className="sheet-foot">
-          <button type="button" className="btn ghost" onClick={onClose}>
+          {/* Not while sending: the session would start anyway (state-machine audit, bug 9). */}
+          <button
+            type="button"
+            className="btn ghost"
+            disabled={isSending}
+            onClick={onClose}
+          >
             Cancel
           </button>
           <button type="submit" className="btn primary" disabled={isSending}>

@@ -159,7 +159,7 @@ describe("the room's API", () => {
     await expect(loadProject(name)).resolves.toEqual(visitorView);
     expect(fetchMock.mock.calls[0]).toEqual([
       "/api/p/PaperPlane/Stash.js",
-      { method: "GET" },
+      expect.objectContaining({ method: "GET" }),
     ]);
   });
 
@@ -191,7 +191,7 @@ describe("the room's API", () => {
     await expect(listMembers(name)).resolves.toEqual(people);
     expect(fetchMock.mock.calls[0]).toEqual([
       "/api/p/PaperPlane/Stash.js/members",
-      { method: "GET" },
+      expect.objectContaining({ method: "GET" }),
     ]);
   });
 

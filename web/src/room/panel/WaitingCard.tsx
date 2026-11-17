@@ -47,6 +47,11 @@ export function WaitingCard({
   children,
 }: Props) {
   const [openRow, setOpenRow] = useState<string | null>(null);
+  // A hand that leaves the line (taken, merged, removed) forgets its menu, so it never comes back
+  // with it open, as after Away (state-machine audit, bug 15).
+  if (openRow !== null && !waiting.some((hand) => hand.id === openRow)) {
+    setOpenRow(null);
+  }
   return (
     <section className="qcard q-wait" aria-label="Waiting">
       <div className="q-wait-head">

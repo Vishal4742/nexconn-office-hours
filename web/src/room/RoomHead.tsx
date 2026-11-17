@@ -20,6 +20,8 @@ type Props = {
   readonly me: Me | null;
   /** Null until the queue has loaded. */
   readonly queue: Queue | null;
+  /** The queue could not be loaded and there is none to show: the panel says why. */
+  readonly isFailed: boolean;
   readonly tab: RoomTab;
   readonly onTab: (tab: RoomTab) => void;
   /** Maintainer, no live session: opens the start sheet. */
@@ -43,7 +45,23 @@ function LiveLabel({ session }: { readonly session: QueueSession | null }) {
 }
 
 /** The session as a headline, its state the last word in blue italic serif. */
-function Title({ queue }: { readonly queue: Queue | null }) {
+function Title({
+  queue,
+  isFailed,
+}: {
+  readonly queue: Queue | null;
+  readonly isFailed: boolean;
+}) {
+  if (!queue && isFailed) {
+    // Never "Loading…" for a load that failed (state-machine audit, bug 14). The panel says why
+    // and offers Try again; the store asks again on its own a minute later.
+    return (
+      <h1 className="rh-title" aria-label="The session didn't load.">
+        <span className="rh-name">The session</span>
+        <span className="serif">didn&rsquo;t load.</span>
+      </h1>
+    );
+  }
   if (!queue) {
     return (
       <h1 className="rh-title" aria-busy="true">
@@ -71,6 +89,7 @@ export function RoomHead({
   project,
   me,
   queue,
+  isFailed,
   tab,
   onTab,
   onStart,
@@ -121,7 +140,7 @@ export function RoomHead({
           )}
         </div>
       </div>
-      <Title queue={queue} />
+      <Title queue={queue} isFailed={isFailed} />
       {(meta || hasControls) && (
         <div className="rh-session">
           {meta && <p className="rh-meta">{meta}</p>}

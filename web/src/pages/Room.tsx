@@ -208,6 +208,7 @@ function MemberRoom({ project, groupId }: MemberRoomProps) {
         project={project}
         me={me}
         queue={queue}
+        isFailed={queueState.status === "failed"}
         tab={tab}
         onTab={setTab}
         onStart={() => setSheet({ kind: "start" })}

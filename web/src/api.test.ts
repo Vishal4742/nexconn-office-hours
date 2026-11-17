@@ -79,7 +79,8 @@ describe("api", () => {
 });
 
 describe("api: a server that never answers (state-machine audit, bug 11)", () => {
-  const aborted = () => new DOMException("The request was aborted.", "AbortError");
+  const aborted = () =>
+    new DOMException("The request was aborted.", "AbortError");
 
   afterEach(() => vi.useRealTimers());
 

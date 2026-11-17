@@ -11,6 +11,12 @@ type Props = {
   readonly title: string;
   /** Escape, a click on the backdrop and the close button ask for this; the parent removes the sheet. */
   readonly onClose: () => void;
+  /**
+   * A request of the sheet is on its way: nothing closes it until the answer came, so a refusal
+   * is seen, and a close never looks like it stopped what the server may already have done
+   * (state-machine audit, bug 9). Requests give up after 30 s (api.ts), so this always ends.
+   */
+  readonly isBusy?: boolean;
   readonly children: ReactNode;
 };
 
@@ -23,7 +29,7 @@ const FIRST_FIELD = "input:not([type=hidden]), textarea, select";
  * first field and goes back to where it was when the sheet goes away. The sheet never closes
  * itself: Escape, the backdrop and the close button call onClose, and the parent removes it.
  */
-export function Sheet({ title, onClose, children }: Props) {
+export function Sheet({ title, onClose, isBusy = false, children }: Props) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const pressedBackdrop = useRef(false);
   const titleId = useId();
@@ -43,15 +49,23 @@ export function Sheet({ title, onClose, children }: Props) {
     };
   }, []);
 
+  function askToClose() {
+    if (!isBusy) onClose();
+  }
+
   function handleCancel(event: SyntheticEvent<HTMLDialogElement>) {
     event.preventDefault(); // Escape: the parent decides, by removing the sheet
-    onClose();
+    askToClose();
   }
 
   function handleClose(event: SyntheticEvent<HTMLDialogElement>) {
     // A browser may close a dialog on a second Escape whatever the page says. A close that comes
     // late for a dialog that is open again (React's development double effect) is not one.
-    if (!event.currentTarget.open) onClose();
+    const dialog = event.currentTarget;
+    if (dialog.open) return;
+    // While a request is on its way, the sheet comes back until the answer does.
+    if (isBusy) dialog.showModal();
+    else onClose();
   }
 
   // For events, the backdrop is the dialog itself: the sheet's body covers all the rest of it. A
@@ -61,7 +75,7 @@ export function Sheet({ title, onClose, children }: Props) {
   }
   function handleClick(event: MouseEvent<HTMLDialogElement>) {
     if (pressedBackdrop.current && event.target === event.currentTarget) {
-      onClose();
+      askToClose();
     }
   }
 
@@ -82,7 +96,8 @@ export function Sheet({ title, onClose, children }: Props) {
             type="button"
             className="icon-btn"
             aria-label="Close"
-            onClick={onClose}
+            disabled={isBusy}
+            onClick={askToClose}
           >
             <svg
               viewBox="0 0 16 16"
