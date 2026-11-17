@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"math"
 	"net/http"
 	"strings"
 	"time"
@@ -299,17 +300,34 @@ func (d deps) joinRoom(w http.ResponseWriter, r *http.Request) {
 // runs: a leave and a join could lift the chat's mute. A failure is only logged; the member's
 // page asks again the next time it opens the room.
 func (d deps) rejoin(ctx context.Context, project store.Project, userID string) {
-	until, err := d.projects.MutedUntil(ctx, project.ID, userID)
-	switch {
-	case err != nil:
-		log.Printf("rejoin %s/%s: mute: %v", project.Owner, project.Repo, err)
-		return
-	case until.After(now()):
+	if left, ok := d.muteLeft(ctx, project, userID); !ok || left > 0 {
 		return
 	}
 	if err := d.rooms.JoinGroup(ctx, groupID(project.ID), userID); err != nil {
 		log.Printf("rejoin %s/%s: %v", project.Owner, project.Repo, err)
+		return
 	}
+	// A mute that landed between the look above and the join reached the chat before the join
+	// did, which may have lifted it: it is set again for what is left of it.
+	if left, ok := d.muteLeft(ctx, project, userID); ok && left > 0 && d.chat != nil {
+		if err := d.chat.Mute(ctx, groupID(project.ID), userID, int32(math.Ceil(left.Minutes()))); err != nil {
+			log.Printf("rejoin %s/%s: mute again: %v", project.Owner, project.Repo, err)
+		}
+	}
+}
+
+// muteLeft is how long the member's mute in the room still runs (zero or less: none), and false
+// when that can't be told; the failure is logged.
+func (d deps) muteLeft(ctx context.Context, project store.Project, userID string) (time.Duration, bool) {
+	until, err := d.projects.MutedUntil(ctx, project.ID, userID)
+	if err != nil {
+		log.Printf("rejoin %s/%s: mute: %v", project.Owner, project.Repo, err)
+		return 0, false
+	}
+	if until.IsZero() {
+		return 0, true
+	}
+	return until.Sub(now()), true
 }
 
 // roomMembers lists who is in the room, so the chat can show names and avatars (FR-PROJ-4). For
