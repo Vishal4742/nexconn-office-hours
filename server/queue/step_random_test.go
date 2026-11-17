@@ -118,7 +118,7 @@ func TestRandomSessions(t *testing.T) {
 			refused[contract[i]]++
 		}
 		// An ended session takes one action: the author taking back a carried question (FR-HAND-4).
-		isTakeBack := a.Kind == Withdraw && (err == nil || errors.Is(err, ErrNotYours))
+		isTakeBack := a.Kind == Withdraw && (err == nil || errors.Is(err, ErrNotYours) || errors.Is(err, ErrNoSuchHand))
 		if !wasLive && !errors.Is(err, ErrNotLive) && !isTakeBack {
 			t.Fatalf("FR-SESS-4: %s in a session that is over: got %v, want %v", a.Kind, err, ErrNotLive)
 		}

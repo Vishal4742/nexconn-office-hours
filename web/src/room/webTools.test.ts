@@ -161,6 +161,36 @@ describe("roomTools (FR-AGENT-5)", () => {
     ]);
   });
 
+  it("get_queue tells the viewer's question an ended session carries over, for withdraw_hand (FR-HAND-4)", async () => {
+    const mine = {
+      ...queue.hands[0],
+      id: "44",
+      isMine: true,
+      status: "carried" as const,
+    };
+    const ended: Queue = {
+      ...queue,
+      session: queue.session && { ...queue.session, live: false },
+      hands: [],
+      done: [mine],
+    };
+    const result = await tool(
+      roomTools(stash, false, ready(ended), act),
+      "get_queue",
+    ).execute({});
+    const seen = JSON.parse(textOf(result)) as {
+      carriedOver: { id: string; title: string } | null;
+    };
+    expect(seen.carriedOver).toEqual({ id: "44", title: mine.title });
+    const live = await tool(
+      roomTools(stash, false, ready(queue), act),
+      "get_queue",
+    ).execute({});
+    expect(
+      (JSON.parse(textOf(live)) as { carriedOver: unknown }).carriedOver,
+    ).toBeNull();
+  });
+
   it("raise_hand raises it in the live session, as the sheet does", async () => {
     const fetchMock = stubFetch({ ok: true, data: queue });
     const result = await tool(

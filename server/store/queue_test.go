@@ -925,14 +925,43 @@ func TestTakeBackACarriedQuestion(t *testing.T) {
 		}
 	})
 
+	t.Run("FR-HAND-4: a start moving the question when the take-back reads it wins: the question waits in the new session", func(t *testing.T) {
+		s, pool, session, hand := carrying(t)
+		// The start's move, held open: StartSession does it without the ended session's lock.
+		next := queueSession(t, pool, "aaaa", "live")
+		start, err := pool.Begin(ctx)
+		if err != nil {
+			t.Fatalf("begin: %v", err)
+		}
+		defer start.Rollback(ctx) //nolint:errcheck // a no-op after Commit
+		if _, err := start.Exec(ctx, `UPDATE hands SET session_id = $1, status = 'waiting', closed_at = NULL WHERE id = $2`, next, hand); err != nil {
+			t.Fatalf("move the hand: %v", err)
+		}
+		tookBack := make(chan error, 1)
+		go func() {
+			_, err := s.Apply(ctx, session, withdraw("gh2", hand))
+			tookBack <- err
+		}()
+		time.Sleep(300 * time.Millisecond) // the take-back now waits for the hand's row
+		if err := start.Commit(ctx); err != nil {
+			t.Fatalf("commit the start: %v", err)
+		}
+		if err := <-tookBack; !errors.Is(err, queue.ErrNoSuchHand) {
+			t.Fatalf("the take-back = %v, want %v", err, queue.ErrNoSuchHand)
+		}
+		if n := count(t, pool, `SELECT count(*) FROM hands WHERE id = $1 AND session_id = $2 AND status = 'waiting'`, hand, next); n != 1 {
+			t.Fatalf("the question is not waiting in the new session: the take-back wrote over the start")
+		}
+	})
+
 	t.Run("FR-HAND-4: once the next session started, the question waits there, and is taken back there", func(t *testing.T) {
 		s, _, session, hand := carrying(t)
 		next, err := s.StartSession(ctx, NewSession{ProjectID: "aaaa", HostID: "gh1", Title: "Thursday office hours"})
 		if err != nil {
 			t.Fatalf("StartSession: %v", err)
 		}
-		if _, err := s.Apply(ctx, session, withdraw("gh2", hand)); !errors.Is(err, queue.ErrNotLive) {
-			t.Fatalf("Withdraw in the ended session after the start = %v, want %v", err, queue.ErrNotLive)
+		if _, err := s.Apply(ctx, session, withdraw("gh2", hand)); !errors.Is(err, queue.ErrNoSuchHand) {
+			t.Fatalf("Withdraw in the ended session after the start = %v, want %v", err, queue.ErrNoSuchHand)
 		}
 		if _, err := s.Apply(ctx, next.ID, withdraw("gh2", hand)); err != nil {
 			t.Fatalf("Withdraw in the next session: %v", err)
