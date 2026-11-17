@@ -1,6 +1,6 @@
 import { useLayoutEffect } from "react";
 
-import { signInHref, signInMessage } from "../auth";
+import { signInHref, signInMessage, signInRetryPath } from "../auth";
 import { GitHubMark } from "../components/Icons";
 import { Closing } from "../landing/Closing";
 import { Facts } from "../landing/Facts";
@@ -29,7 +29,10 @@ export function Landing() {
       {failure && (
         <p className="notice" role="alert">
           <span>{failure}</span>
-          <a className="btn ghost sm" href={signInHref("/dashboard")}>
+          <a
+            className="btn ghost sm"
+            href={signInHref(signInRetryPath(window.location.search))}
+          >
             <GitHubMark />
             Try again
           </a>
