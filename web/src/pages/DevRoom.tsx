@@ -121,6 +121,7 @@ export function DevRoom() {
             project={project}
             me={asMe(isMaintainer ? mia : diego)}
             queue={queue}
+            isFailed={state.status === "failed"}
             tab={tab}
             onTab={setTab}
             onStart={() => setSheet("start")}

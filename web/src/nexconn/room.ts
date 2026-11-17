@@ -4,6 +4,7 @@ import { GroupChannelIdentifier } from "@nexconn/chat";
 
 import { ensureConnected, getApp, getConnection, onMessages } from "./client";
 import { inTurn, openWhenReady } from "./connect";
+import { newestAnswer } from "./newest";
 import { membersOf, rememberRoom, strangers, userProfiles } from "./roster";
 import type { Person } from "./roster";
 
@@ -12,6 +13,8 @@ export type RoomToOpen = {
   readonly name: string;
   /** Asks our server who is in the room: before it opens, and again when a stranger writes. */
   readonly loadMembers: () => Promise<readonly Person[]>;
+  /** Told the room's people each time a list of them is used, while the room is open. */
+  readonly onMembers: (members: readonly Person[]) => void;
 };
 
 const RETRY_MS = 250;
@@ -42,16 +45,15 @@ export async function openRoom(
 
   // Chat UI copies names and avatars the moment a room is selected and never refreshes that
   // copy on its own, so it must know everyone before the channel opens (docs/ARCHITECTURE.md §4).
-  let asks = 0;
-  const tellChatUi = async () => {
-    const ask = ++asks;
-    const members = await room.loadMembers();
-    // An older answer that arrives after a newer one would take the newest people out again.
-    if (ask !== asks) return;
+  // An older answer that arrives after a newer one was used would take the newest people out
+  // again; one whose newer fetch failed is still used.
+  const tellChatUi = newestAnswer(room.loadMembers, (members) => {
+    if (signal.aborted) return;
     rememberRoom(room.groupId, room.name, members);
     const ids = membersOf(room.groupId).map((member) => member.userId);
     userProfiles(ids).forEach((profile) => app.updateUserProfile(profile));
-  };
+    room.onMembers(members);
+  });
   await tellChatUi();
   if (signal.aborted) return () => {};
 

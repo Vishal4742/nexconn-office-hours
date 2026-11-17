@@ -64,6 +64,9 @@ export function keepQueue(options: KeeperOptions): Keeper {
   const { clock } = options;
   let held: Queue | null = null;
   let isStopped = false;
+  // A fetch failed while nothing was held: the page shows the failure, and the quiet check asks
+  // again (state-machine audit, bug 14).
+  let hasFailed = false;
   // Live pings whose queue is not held yet, for their latency.
   let pending: readonly Ping[] = [];
   // Since when nothing came from the server about this room (no answer, no ping) and nothing was asked.
@@ -96,7 +99,10 @@ export function keepQueue(options: KeeperOptions): Keeper {
     } catch (failure) {
       if (isStopped) return;
       pending = []; // the fetch those pings led to is gone
-      if (!held) options.onFailure(failure);
+      if (!held) {
+        hasFailed = true;
+        options.onFailure(failure);
+      }
       return;
     }
     if (isStopped) return;
@@ -119,8 +125,9 @@ export function keepQueue(options: KeeperOptions): Keeper {
     },
     accept: take,
     checkSilence: () => {
-      if (isStopped || !held) return;
-      const limit = held.session?.live ? QUIET_LIVE_MS : QUIET_IDLE_MS;
+      // With nothing held, only a load that failed is asked again: never the first one on its way.
+      if (isStopped || (!held && !hasFailed)) return;
+      const limit = !held || held.session?.live ? QUIET_LIVE_MS : QUIET_IDLE_MS;
       if (clock.now() - quietSince < limit) return;
       hear(); // the ask counts too: a server that does not answer is asked once per quiet spell
       refresh();

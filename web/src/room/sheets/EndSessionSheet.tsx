@@ -53,7 +53,7 @@ export function EndSessionSheet({
   }
 
   return (
-    <Sheet title="End this session?" onClose={onClose}>
+    <Sheet title="End this session?" onClose={onClose} isBusy={isSending}>
       {answering ? (
         <p className="sheet-lead">
           @{answering.author.login}&rsquo;s question is being answered. Finish
@@ -85,7 +85,13 @@ export function EndSessionSheet({
       )}
       <Refused sending={sending} />
       <div className="sheet-foot">
-        <button type="button" className="btn ghost" onClick={onClose}>
+        {/* Not while ending: the session would end anyway (state-machine audit, bug 9). */}
+        <button
+          type="button"
+          className="btn ghost"
+          disabled={isSending}
+          onClick={onClose}
+        >
           Keep going
         </button>
         <button

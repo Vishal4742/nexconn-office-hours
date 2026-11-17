@@ -39,6 +39,10 @@ export function RaiseHandSheet({ project, session, onClose }: Props) {
   const titleProblem = lengthProblem(cleanTitle, HAND_TITLE);
   const detailsProblem = lengthProblem(cleanDetails, HAND_DETAILS);
   const host = session.host ? `@${session.host.login}` : "The maintainer";
+  // While the hand is on its way the sheet stays, so its answer is seen (state-machine audit, bug 9).
+  const close = () => {
+    if (!isSending) onClose();
+  };
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -54,7 +58,7 @@ export function RaiseHandSheet({ project, session, onClose }: Props) {
   }
 
   return (
-    <Sheet title="Raise your hand" onClose={onClose}>
+    <Sheet title="Raise your hand" onClose={onClose} isBusy={isSending}>
       <p className="sheet-lead">
         {host} takes questions in order. Write yours so the next person can find
         it too.
@@ -73,7 +77,7 @@ export function RaiseHandSheet({ project, session, onClose }: Props) {
           project={project}
           title={title}
           details={details}
-          onSolved={onClose}
+          onSolved={close}
         />
         <TextField
           id={`${id}-details`}
@@ -88,7 +92,12 @@ export function RaiseHandSheet({ project, session, onClose }: Props) {
         />
         <Refused sending={sending} />
         <div className="sheet-foot">
-          <button type="button" className="btn ghost" onClick={onClose}>
+          <button
+            type="button"
+            className="btn ghost"
+            disabled={isSending}
+            onClick={close}
+          >
             Cancel
           </button>
           <button type="submit" className="btn primary" disabled={isSending}>

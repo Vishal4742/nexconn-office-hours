@@ -57,16 +57,43 @@ function fallbackMessage(status: number): string {
     : `The server refused the request (${status}).`;
 }
 
+/**
+ * How long a call may take, body included, before the page gives up on it. A fetch stuck on a
+ * dead connection (a laptop that woke up) would otherwise hold up every later queue fetch
+ * (state-machine audit, bug 11). The server answers every request within 25 s (requestDeadline
+ * in server/main.go), so a call still open after this went nowhere.
+ */
+export const REQUEST_TIMEOUT_MS = 30_000;
+
+const tooSlow = () =>
+  new ApiError(0, "The server took too long to answer. Try again.");
+
 async function request<T>(
   method: "GET" | "POST",
   path: string,
   body?: unknown,
 ): Promise<T> {
+  const timeout = new AbortController();
+  const timer = setTimeout(() => timeout.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    return await send<T>(method, path, body, timeout.signal);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function send<T>(
+  method: "GET" | "POST",
+  path: string,
+  body: unknown,
+  signal: AbortSignal,
+): Promise<T> {
   const init: RequestInit =
     method === "GET"
-      ? { method }
+      ? { method, signal }
       : {
           method,
+          signal,
           // Every mutation is JSON, even an empty one: the server refuses anything else (NFR-SEC-5).
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body ?? {}),
@@ -76,6 +103,7 @@ async function request<T>(
   try {
     res = await fetch(path, init);
   } catch {
+    if (signal.aborted) throw tooSlow();
     throw new ApiError(
       0,
       "Can't reach the server. Check your connection and try again.",
@@ -84,6 +112,7 @@ async function request<T>(
 
   // A proxy or platform error page is HTML. It must not reach the user as a parse error.
   const payload: unknown = await res.json().catch(() => null);
+  if (signal.aborted) throw tooSlow(); // the body stopped arriving
   if (isEnvelope(payload)) {
     if (res.ok && payload.ok) return payload.data as T;
     throw new ApiError(

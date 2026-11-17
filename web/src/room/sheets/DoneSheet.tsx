@@ -67,7 +67,7 @@ export function DoneSheet({ hand, isStillAnswering, onClose }: Props) {
   }
 
   return (
-    <Sheet title="Publish the answer" onClose={onClose}>
+    <Sheet title="Publish the answer" onClose={onClose} isBusy={isSending}>
       <p className="sheet-lead">
         {askedBy(hand)} The answer becomes a public FAQ page and a card in the
         room.
@@ -126,7 +126,13 @@ export function DoneSheet({ hand, isStillAnswering, onClose }: Props) {
           </p>
         )}
         <div className="sheet-foot">
-          <button type="button" className="btn ghost" onClick={onClose}>
+          {/* Not while publishing: the entry would be published anyway (state-machine audit, bug 9). */}
+          <button
+            type="button"
+            className="btn ghost"
+            disabled={isSending}
+            onClick={onClose}
+          >
             {isStillAnswering ? "Cancel" : "Close"}
           </button>
           <button

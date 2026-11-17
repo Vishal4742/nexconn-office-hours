@@ -43,11 +43,8 @@ export function ChatRoom({ groupId, owner, repo, onMembers }: Props) {
           {
             groupId,
             name: `${owner}/${repo}`,
-            loadMembers: async () => {
-              const members = await listMembers({ owner, repo });
-              onMembers(members);
-              return members;
-            },
+            loadMembers: () => listMembers({ owner, repo }),
+            onMembers,
           },
           leaving.signal,
         ),
