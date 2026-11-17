@@ -63,6 +63,17 @@ func pathID(r *http.Request) (int64, bool) {
 	return id, err == nil && id > 0
 }
 
+// tooFast refuses a change past the person's allowance (NFR-SEC-4), and writes the refusal
+// itself: every change pings the room, so a loop would flood everyone in it. Checked right after
+// the guard, before anything is looked up or written.
+func (d deps) tooFast(w http.ResponseWriter, u session.User) bool {
+	if d.changes == nil || d.changes.allow(u.ID, time.Now()) {
+		return false
+	}
+	writeJSON(w, http.StatusTooManyRequests, envelope{Error: "You're making changes too fast. Wait a few seconds, then try again."})
+	return true
+}
+
 // allow asks the roles tables whether the user may act in the project (NFR-SEC-2).
 func (d deps) allow(ctx context.Context, u session.User, projectID string, need role) error {
 	if need == asMaintainer {
@@ -78,6 +89,9 @@ func (d deps) onSession(w http.ResponseWriter, r *http.Request, in any, need rol
 	u, err := d.guard.Mutation(w, r, in)
 	if err != nil {
 		writeError(w, err)
+		return target{}, false
+	}
+	if d.tooFast(w, u) {
 		return target{}, false
 	}
 	if d.queue == nil {
@@ -112,6 +126,9 @@ func (d deps) onHand(w http.ResponseWriter, r *http.Request, in any, need role) 
 		writeError(w, err)
 		return target{}, false
 	}
+	if d.tooFast(w, u) {
+		return target{}, false
+	}
 	if d.queue == nil {
 		writeJSON(w, http.StatusServiceUnavailable, envelope{Error: queueNotSetUp})
 		return target{}, false
@@ -143,6 +160,9 @@ func (d deps) onProject(w http.ResponseWriter, r *http.Request, in any, need rol
 	u, err := d.guard.Mutation(w, r, in)
 	if err != nil {
 		writeError(w, err)
+		return session.User{}, store.Project{}, false
+	}
+	if d.tooFast(w, u) {
 		return session.User{}, store.Project{}, false
 	}
 	project, ok := d.projectOfPath(w, r, u.ID)

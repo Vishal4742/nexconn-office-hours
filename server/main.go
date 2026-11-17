@@ -85,11 +85,12 @@ type deps struct {
 	github   *github.Client
 	users    userStore
 	projects projectStore
-	queue    queueStore   // api_queue.go
-	starts   sessionStore // shapes.go: starting and planning sessions
-	faq      faqStore     // shapes.go
-	stats    statsStore   // shapes.go
-	grants   grantStore   // oauth.go: the agents people connected
+	queue    queueStore     // api_queue.go
+	starts   sessionStore   // shapes.go: starting and planning sessions
+	faq      faqStore       // shapes.go
+	stats    statsStore     // shapes.go
+	grants   grantStore     // oauth.go: the agents people connected
+	changes  *changeLimiter // NFR-SEC-4: room changes per person (api_queue.go); nil is no limit
 }
 
 func newMux(cfg config, d deps) *http.ServeMux {
@@ -171,7 +172,7 @@ func newMux(cfg config, d deps) *http.ServeMux {
 	// The MCP endpoint itself (FR-AGENT-1, FR-AGENT-4): its tools go through this same mux. It
 	// needs our origin to check requests against, which every real server has.
 	if d.guard != nil {
-		mux.Handle(mcpPath, d.agentEndpoint(mux, newAgentLimiter()))
+		mux.Handle(mcpPath, d.agentEndpoint(mux, newChangeLimiter()))
 	}
 
 	// The public FAQ pages are rendered here, not by the web app (FR-FAQ-3), and so are their
@@ -260,7 +261,7 @@ func newDeps(ctx context.Context, cfg config) (deps, error) {
 	if err != nil {
 		return deps{}, fmt.Errorf("nexconn: %w", err)
 	}
-	d := deps{guard: g, sessions: sessions, github: gh}
+	d := deps{guard: g, sessions: sessions, github: gh, changes: newChangeLimiter()}
 	// A nil pointer inside an interface would not compare equal to nil, so each is set only when
 	// it exists.
 	if chat != nil {

@@ -235,7 +235,7 @@ func buildAgentTools() []agentTool {
 }
 
 // runTool runs one tools/call for the agent in ctx.
-func (d deps) runTool(ctx context.Context, mux http.Handler, limiter *agentLimiter, name string, raw json.RawMessage) mcp.Result {
+func (d deps) runTool(ctx context.Context, mux http.Handler, limiter *changeLimiter, name string, raw json.RawMessage) mcp.Result {
 	tool := agentToolByName[name] // the protocol refused unknown names already
 	call, _ := ctx.Value(agentCallKey{}).(agentCall)
 	var args toolArgs

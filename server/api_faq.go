@@ -90,6 +90,9 @@ func (d deps) deleteFAQ(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
+	if d.tooFast(w, u) {
+		return
+	}
 	if d.faq == nil {
 		writeJSON(w, http.StatusServiceUnavailable, envelope{Error: faqAPINotSetUp})
 		return
