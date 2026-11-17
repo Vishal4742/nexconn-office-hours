@@ -53,9 +53,15 @@ func safeNext(next string) string {
 }
 
 // signInFailed sends the browser back to the landing page, which shows one sentence per reason.
-// A top-level navigation must never end on a JSON error.
-func signInFailed(w http.ResponseWriter, r *http.Request, reason string) {
-	http.Redirect(w, r, "/?signin="+reason, http.StatusFound)
+// A top-level navigation must never end on a JSON error. next is where the attempt started, ""
+// when that is not known: the landing page's Try again returns there (state-machine audit, bug
+// 10), and it passes safeNext again on the way.
+func signInFailed(w http.ResponseWriter, r *http.Request, reason, next string) {
+	target := "/?signin=" + reason
+	if next != "" {
+		target += "&next=" + url.QueryEscape(safeNext(next))
+	}
+	http.Redirect(w, r, target, http.StatusFound)
 }
 
 // login starts a sign-in (FR-AUTH-1): a fresh state and PKCE verifier go into the sealed cookie,
@@ -64,7 +70,7 @@ func (d deps) login(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	origin, err := url.Parse(d.guard.Origin())
 	if err != nil {
-		signInFailed(w, r, "server")
+		signInFailed(w, r, "server", r.URL.Query().Get("next"))
 		return
 	}
 	// A deployment answers on more than one host. The state cookie must be set on the host
@@ -83,13 +89,13 @@ func (d deps) login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if d.github == nil || d.users == nil {
-		signInFailed(w, r, "setup")
+		signInFailed(w, r, "setup", q.Get("next"))
 		return
 	}
 	st := oauthState{State: rand.Text(), Verifier: rand.Text() + rand.Text(), Next: safeNext(q.Get("next"))}
 	if err := d.sessions.Write(w, oauthCookie, st, oauthTTL, d.guard.Secure()); err != nil {
 		log.Printf("sign-in: seal state: %v", err)
-		signInFailed(w, r, "server")
+		signInFailed(w, r, "server", q.Get("next"))
 		return
 	}
 	http.Redirect(w, r, d.github.AuthorizeURL(st.State, st.Verifier), http.StatusFound)
@@ -100,37 +106,40 @@ func (d deps) login(w http.ResponseWriter, r *http.Request) {
 func (d deps) callback(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	if d.github == nil || d.users == nil {
-		signInFailed(w, r, "setup")
+		signInFailed(w, r, "setup", "")
 		return
 	}
 	var st oauthState
 	err := d.sessions.Read(r, oauthCookie, &st)
-	session.Clear(w, oauthCookie, d.guard.Secure()) // one attempt, one use
 	q := r.URL.Query()
 	if err != nil || st.State == "" || subtle.ConstantTimeCompare([]byte(q.Get("state")), []byte(st.State)) != 1 {
-		signInFailed(w, r, "expired")
+		// The cookie may hold a newer attempt from another tab: it stays for that one, which can
+		// still finish (state-machine audit, bug 10). This one is told it ended elsewhere.
+		signInFailed(w, r, "expired", "")
 		return
 	}
+	session.Clear(w, oauthCookie, d.guard.Secure()) // one attempt, one use
+
 	if q.Get("error") != "" { // access_denied: the user pressed Cancel
-		signInFailed(w, r, "cancelled")
+		signInFailed(w, r, "cancelled", st.Next)
 		return
 	}
 	code := q.Get("code")
 	if code == "" {
-		signInFailed(w, r, "github")
+		signInFailed(w, r, "github", st.Next)
 		return
 	}
 
 	token, err := d.github.Exchange(r.Context(), code, st.Verifier)
 	if err != nil {
 		log.Printf("sign-in: %v", err)
-		signInFailed(w, r, "github")
+		signInFailed(w, r, "github", st.Next)
 		return
 	}
 	profile, err := d.github.User(r.Context(), token)
 	if err != nil {
 		log.Printf("sign-in: %v", err)
-		signInFailed(w, r, "github")
+		signInFailed(w, r, "github", st.Next)
 		return
 	}
 	u := session.User{
@@ -140,12 +149,12 @@ func (d deps) callback(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := d.users.UpsertUser(r.Context(), store.User{ID: u.ID, GitHubID: profile.ID, Login: u.Login, Name: u.Name, AvatarURL: u.AvatarURL}); err != nil {
 		log.Printf("sign-in: %v", err)
-		signInFailed(w, r, "server")
+		signInFailed(w, r, "server", st.Next)
 		return
 	}
 	if err := d.sessions.Write(w, session.Cookie, u, session.Lifetime, d.guard.Secure()); err != nil {
 		log.Printf("sign-in: seal session: %v", err)
-		signInFailed(w, r, "server")
+		signInFailed(w, r, "server", st.Next)
 		return
 	}
 	http.Redirect(w, r, safeNext(st.Next), http.StatusFound)
