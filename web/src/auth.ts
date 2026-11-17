@@ -105,6 +105,10 @@ async function ask(): Promise<Auth> {
 
 const CHANNEL = "office-hours-auth";
 let tabs: BroadcastChannel | null = null;
+// Whether a load is on its way, and whether another tab spoke meanwhile: that load's answer may
+// be from before the other tab's sign-in or sign-out, so it is asked again.
+let isLoading = false;
+let heardWhileLoading = false;
 
 /** Tells the other tabs of this site whom this one now knows the session names. */
 function tellOtherTabs(): void {
@@ -126,7 +130,9 @@ function followOtherTabs(): void {
     tabs = new BroadcastChannel(CHANNEL);
     tabs.onmessage = (event: MessageEvent<{ readonly user?: unknown }>) => {
       const { user } = event.data ?? {};
-      if (user === null || typeof user === "string") reloadIfSomeoneElse(user);
+      if (user !== null && typeof user !== "string") return;
+      if (isLoading) heardWhileLoading = true;
+      else reloadIfSomeoneElse(user);
     };
   }
   document.addEventListener("visibilitychange", () => {
@@ -140,7 +146,15 @@ function followOtherTabs(): void {
 }
 
 async function load(): Promise<void> {
-  set(await ask());
+  isLoading = true;
+  let now = await ask();
+  // Asked again until an answer comes back with no other tab speaking meanwhile.
+  while (heardWhileLoading) {
+    heardWhileLoading = false;
+    now = await ask();
+  }
+  isLoading = false;
+  set(now);
   tellOtherTabs();
 }
 
