@@ -194,6 +194,10 @@ function MemberRoom({ project, groupId }: MemberRoomProps) {
   const answering =
     queue?.hands.find((hand) => hand.status === "answering") ?? null;
   const closeSheet = () => setSheet({ kind: "none" });
+  // A session that went live (Go live here, another maintainer, another tab) ends the Start sheet
+  // for good. Only hiding it would keep it in state, and it would open by itself once that
+  // session ended.
+  if (sheet.kind === "start" && session?.live) setSheet({ kind: "none" });
 
   // FR-QUEUE-11: the tab's title carries my place. App sets the plain title again when the page
   // changes.
@@ -233,7 +237,6 @@ function MemberRoom({ project, groupId }: MemberRoomProps) {
         }
         onDone={(hand) => setSheet({ kind: "done", hand })}
       />
-      {/* A session that went live meanwhile (another maintainer, another tab) closes Start. */}
       {sheet.kind === "start" && !session?.live && (
         <StartSessionSheet project={project} onClose={closeSheet} />
       )}
