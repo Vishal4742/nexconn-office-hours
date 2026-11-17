@@ -113,16 +113,13 @@ func (f *fakeRooms) CreateGroup(_ context.Context, channelID, name, ownerID stri
 	return nil
 }
 
-// JoinGroup is stricter than Nexconn, which accepts a second join: here it is an error, so a
-// join the server had no need to ask for fails a test.
+// JoinGroup accepts a second join, as Nexconn does (notes/phase-0.md): a join the server had no
+// need to ask for shows in the events.
 func (f *fakeRooms) JoinGroup(_ context.Context, channelID string, userIDs ...string) error {
 	if f.joinErr != nil {
 		return f.joinErr
 	}
 	for _, id := range userIDs {
-		if f.in[channelID+" "+id] {
-			return errors.New("fake nexconn: " + id + " is already in " + channelID)
-		}
 		f.in[channelID+" "+id] = true
 	}
 	*f.events = append(*f.events, "join "+channelID+" "+strings.Join(userIDs, ","))
@@ -883,12 +880,69 @@ func TestJoinRoom(t *testing.T) {
 			t.Fatalf("order = %q, want %q", *a.events, want)
 		}
 
-		// Joining again changes nothing and asks Nexconn nothing.
+		// Joining again asks Nexconn again, and writes no second members row: the page joins each
+		// time a member opens the room, so whoever left the chat's group is back in it.
 		*a.events = nil
 		res, body = call(a.mux, "POST", "/api/p/paperplane/stash/join", `{}`, a.as(t, "gh7"))
 		decode(t, body, &joined)
-		if res.StatusCode != 200 || !joined.IsMember || len(*a.events) != 0 {
-			t.Fatalf("second join: status %d, %+v, events %q; want 200, a member, nothing done", res.StatusCode, joined, *a.events)
+		if want := []string{"join " + room.GroupID + " gh7"}; res.StatusCode != 200 || !joined.IsMember || !slices.Equal(*a.events, want) {
+			t.Fatalf("second join: status %d, %+v, events %q; want 200, a member, and only %q", res.StatusCode, joined, *a.events, want)
+		}
+	})
+
+	// A member, gh7, who is in the room's group, and what they did since.
+	member := func(t *testing.T) (*projectsApp, string) {
+		t.Helper()
+		a := newProjectsApp(t)
+		var room projectReply
+		_, body := a.register("paperplane", "stash", a.as(t, "gh42"))
+		decode(t, body, &room)
+		call(a.mux, "POST", "/api/p/paperplane/stash/join", `{}`, a.as(t, "gh7"))
+		*a.events = nil
+		return a, room.GroupID
+	}
+
+	t.Run("FR-PROJ-4: a member who left the chat's group from the browser's SDK is back in it when they open the room", func(t *testing.T) {
+		a, group := member(t)
+		a.rooms.in[group+" gh7"] = false // GroupChannel.leave() in the browser's console
+		res, body := call(a.mux, "POST", "/api/p/paperplane/stash/join", `{}`, a.as(t, "gh7"))
+		if res.StatusCode != 200 || !a.rooms.in[group+" gh7"] {
+			t.Fatalf("status %d body %s, in the group: %v; want 200 and back in", res.StatusCode, body, a.rooms.in[group+" gh7"])
+		}
+	})
+
+	t.Run("FR-MOD-1: not while their mute runs, which a leave and a join could lift", func(t *testing.T) {
+		a, group := member(t)
+		a.rooms.in[group+" gh7"] = false
+		a.projects.muted[strings.TrimPrefix(group, "p")+" gh7"] = time.Now().Add(10 * time.Minute)
+		res, body := call(a.mux, "POST", "/api/p/paperplane/stash/join", `{}`, a.as(t, "gh7"))
+		if res.StatusCode != 200 || len(*a.events) != 0 || a.rooms.in[group+" gh7"] {
+			t.Fatalf("status %d body %s, events %q; want 200, Nexconn not asked, still out", res.StatusCode, body, *a.events)
+		}
+	})
+
+	t.Run("NFR-SEC-4: a member's join counts as a change, so it can't be looped", func(t *testing.T) {
+		a, _ := member(t)
+		a.deps.changes = newChangeLimiter()
+		a.mux = newMux(config{AppURL: testSite}, a.deps)
+		for range changeBurst {
+			a.deps.changes.allow("gh7", time.Now())
+		}
+		res, body := call(a.mux, "POST", "/api/p/paperplane/stash/join", `{}`, a.as(t, "gh7"))
+		refused(t, "past the allowance", res, body, http.StatusTooManyRequests, "too fast")
+		if len(*a.events) != 0 {
+			t.Errorf("events %q, want Nexconn not asked", *a.events)
+		}
+	})
+
+	t.Run("FR-PROJ-4: a member's rejoin that Nexconn refuses still answers as a member, and writes nothing", func(t *testing.T) {
+		a, _ := member(t)
+		a.rooms.joinErr = errors.New("nexconn join: http 200, code 1004: signature error for app key pk_live")
+		res, body := call(a.mux, "POST", "/api/p/paperplane/stash/join", `{}`, a.as(t, "gh7"))
+		var joined projectReply
+		decode(t, body, &joined)
+		if res.StatusCode != 200 || !joined.IsMember || strings.Contains(body, "1004") || len(*a.events) != 0 {
+			t.Fatalf("status %d body %s, events %q; want 200 as a member, nothing written", res.StatusCode, body, *a.events)
 		}
 	})
 
