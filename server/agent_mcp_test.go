@@ -313,7 +313,7 @@ func TestEveryToolReachesItsOwnRoute(t *testing.T) {
 	a.faq.entries = []store.FAQEntry{faqPageFixture()}
 	token := a.connect(t, hostID)
 	rr := &routeRecorder{t: t, a: a}
-	h := a.deps.agentEndpoint(rr, newAgentLimiter())
+	h := a.deps.agentEndpoint(rr, newChangeLimiter())
 	const room = "/api/p/PaperPlane/Stash"
 	for _, c := range []struct {
 		tool, args string
@@ -397,13 +397,13 @@ func TestAgentMutationsAreRateLimited(t *testing.T) {
 	a := agentWithQueue(t)
 	token := a.connect(t, askerID)
 	var refused int
-	for range agentBurst + 5 {
+	for range changeBurst + 5 {
 		if text, isError := useTool(t, a.mux, token, "plus_one", `{"hand_id":31}`); isError && strings.Contains(text, "Slow down") {
 			refused++
 		}
 	}
 	if refused != 5 {
-		t.Errorf("%d of %d quick +1s refused, want the 5 past the burst of %d", refused, agentBurst+5, agentBurst)
+		t.Errorf("%d of %d quick +1s refused, want the 5 past the burst of %d", refused, changeBurst+5, changeBurst)
 	}
 	if text, isError := useTool(t, a.mux, token, "whoami", `{}`); isError {
 		t.Errorf("a read was limited too: %s", text)

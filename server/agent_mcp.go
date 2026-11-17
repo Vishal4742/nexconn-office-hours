@@ -36,7 +36,7 @@ type agentCall struct {
 type agentCallKey struct{}
 
 // agentEndpoint answers /mcp. mux is the website's own routes, which every tool goes through.
-func (d deps) agentEndpoint(mux http.Handler, limiter *agentLimiter) http.Handler {
+func (d deps) agentEndpoint(mux http.Handler, limiter *changeLimiter) http.Handler {
 	server := &mcp.Server{
 		Info:         mcp.Info{Name: "office-hours", Title: "Office Hours", Version: "1"},
 		Instructions: agentInstructions,
@@ -107,43 +107,45 @@ func (d deps) agentChallenge(w http.ResponseWriter, problem string) {
 }
 
 const (
-	agentBurst      = 30     // changes a person's agents may make at once
-	agentPerMinute  = 30     // and how fast that allowance comes back
-	agentBucketsMax = 10_000 // past this many people at once, the limiter forgets them all
+	changeBurst      = 30     // changes a person may make at once
+	changesPerMinute = 30     // and how fast that allowance comes back
+	changeBucketsMax = 10_000 // past this many people at once, the limiter forgets them all
 )
 
-// agentLimiter keeps each person's agents, all their apps together, to agentBurst changes at once,
-// refilled at agentPerMinute: a looping agent would otherwise ping every open room with each
-// change (FR-AGENT-4). Keyed by person, a second app or a reconnect brings no fresh allowance.
-// Reads are not limited, but for the similarity search. ponytail: kept per server instance, so a
-// few instances allow a few times as much; a shared counter in Postgres if an agent gets past it.
-type agentLimiter struct {
+// changeLimiter keeps each person to changeBurst changes at once, refilled at changesPerMinute:
+// every change pings the room, so a loop would flood everyone in it. Two of them run apart: one
+// for a person's agents, all their apps together (FR-AGENT-4: a second app or a reconnect brings
+// no fresh allowance; reads are not limited, but for the similarity search), and one for the
+// website's room changes (NFR-SEC-4, deps.changes), which an agent's changes also pass through.
+// ponytail: kept per server instance, so a few instances allow a few times as much; a shared
+// counter in Postgres if someone gets past it.
+type changeLimiter struct {
 	mu      sync.Mutex
-	buckets map[string]agentBucket
+	buckets map[string]changeBucket
 }
 
-type agentBucket struct {
+type changeBucket struct {
 	tokens float64
 	at     time.Time
 }
 
-func newAgentLimiter() *agentLimiter { return &agentLimiter{buckets: map[string]agentBucket{}} }
+func newChangeLimiter() *changeLimiter { return &changeLimiter{buckets: map[string]changeBucket{}} }
 
 // allow takes one change from the person's allowance at the given time, if there is one.
-func (l *agentLimiter) allow(userID string, at time.Time) bool {
+func (l *changeLimiter) allow(userID string, at time.Time) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	b, seen := l.buckets[userID]
 	if !seen {
-		b = agentBucket{tokens: agentBurst, at: at}
+		b = changeBucket{tokens: changeBurst, at: at}
 	}
-	b.tokens = min(agentBurst, b.tokens+at.Sub(b.at).Minutes()*agentPerMinute)
+	b.tokens = min(changeBurst, b.tokens+at.Sub(b.at).Minutes()*changesPerMinute)
 	b.at = at
 	allowed := b.tokens >= 1
 	if allowed {
 		b.tokens--
 	}
-	if !seen && len(l.buckets) >= agentBucketsMax {
+	if !seen && len(l.buckets) >= changeBucketsMax {
 		clear(l.buckets)
 	}
 	l.buckets[userID] = b
