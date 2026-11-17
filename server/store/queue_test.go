@@ -371,7 +371,9 @@ func TestQueueSnapshot(t *testing.T) {
 	t.Run("a project that never had a session: nothing but the planned time", func(t *testing.T) {
 		pool := testDB(t)
 		people(t, pool)
-		planned := queueAt.Add(48 * time.Hour)
+		// Ahead of the real clock: the store hides a planned time that has passed, and queueAt
+		// (Nov 14) made this fail from Nov 16 on.
+		planned := time.Now().UTC().Add(48 * time.Hour).Truncate(time.Microsecond)
 		mustExec(t, pool, `INSERT INTO projects (id, github_id, owner, repo, created_by, next_session_at) VALUES ('aaaa', 11, 'PaperPlane', 'Stash', 'gh1', $1)`, planned)
 		snap, err := New(pool).Queue(ctx, "aaaa")
 		if err != nil || snap.Session != nil || len(snap.Open) != 0 || len(snap.Closed) != 0 || !snap.NextSessionAt.Equal(planned) || snap.MedianAnswer != 0 {
