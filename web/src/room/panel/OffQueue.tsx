@@ -4,12 +4,13 @@ import type { FormEvent } from "react";
 import { CalendarIcon } from "../../components/Icons";
 import type { Project } from "../../projects";
 import { AddToCalendar } from "../../components/AddToCalendar";
-import { setNextSession } from "../../queue/api";
+import { setNextSession, withdrawHand } from "../../queue/api";
 import { summarize } from "../../queue/place";
 import type { Summary } from "../../queue/place";
 import { actOnQueue } from "../../queue/store";
 import { fromLocalInput, toLocalInput, whenLabel } from "../../queue/times";
-import type { Queue } from "../../queue/types";
+import type { Hand, Queue } from "../../queue/types";
+import { AskOnce } from "./AskOnce";
 import { DoneList } from "./DoneList";
 import { StarIcon } from "./icons";
 import { Said } from "./Said";
@@ -38,15 +39,46 @@ function summaryLine(summary: Summary): string {
 }
 
 /**
+ * My question the session carried over: it comes first in the next one, and until then I can
+ * take it back, say when I found the answer elsewhere (FR-HAND-4).
+ */
+function CarriedQuestion({ hand }: { readonly hand: Hand }) {
+  const action = useAction();
+  const withdraw = () =>
+    void action.run(() => actOnQueue(() => withdrawHand(hand.id)));
+  return (
+    <section className="q-mine" aria-label="Your question">
+      <p className="q-mine-pos">
+        <StarIcon />
+        Your question is saved
+      </p>
+      <p className="q-mine-note">
+        It moves to the front of the next session. You don&rsquo;t need to ask
+        again.
+      </p>
+      <div className="q-btns">
+        <AskOnce
+          label="Withdraw"
+          question="Withdraw your question? It won't be asked next session."
+          confirm="Withdraw"
+          isBusy={action.isBusy}
+          onConfirm={withdraw}
+        />
+      </div>
+      <Said doing={action.doing} />
+    </section>
+  );
+}
+
+/**
  * The panel while no session is live: "No session right now", or the summary of the one that
  * ended, and the next session's time in the viewer's time zone (FR-SESS-5), which a maintainer
  * sets and clears here.
  */
 export function OffQueue({ project, queue, isMaintainer }: Props) {
   const { session, nextSessionAt } = queue;
-  const isMineCarried = queue.done.some(
-    (hand) => hand.isMine && hand.status === "carried",
-  );
+  const mineCarried =
+    queue.done.find((hand) => hand.isMine && hand.status === "carried") ?? null;
 
   return (
     <>
@@ -83,18 +115,7 @@ export function OffQueue({ project, queue, isMaintainer }: Props) {
           )}
         </div>
       </section>
-      {isMineCarried && (
-        <section className="q-mine" aria-label="Your question">
-          <p className="q-mine-pos">
-            <StarIcon />
-            Your question is saved
-          </p>
-          <p className="q-mine-note">
-            It moves to the front of the next session. You don&rsquo;t need to
-            ask again.
-          </p>
-        </section>
-      )}
+      {mineCarried && <CarriedQuestion hand={mineCarried} />}
       {queue.done.length > 0 && (
         <section className="qcard q-wait q-wait-slim" aria-label="This session">
           <DoneList

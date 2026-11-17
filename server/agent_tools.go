@@ -160,7 +160,7 @@ func buildAgentTools() []agentTool {
 			func(ctx context.Context, t toolRun) mcp.Result {
 				return t.onLiveSession(ctx, "/hands", handInput{Title: t.args.Title, Details: t.args.Details})
 			}),
-		tool("withdraw_hand", "Withdraw a hand", "Take your waiting hand back. It loses its place in the queue.", handOnly, destroys, true, handAction("withdraw")),
+		tool("withdraw_hand", "Withdraw a hand", "Take your waiting hand back, or the question an ended session carries over to the next one. It loses its place in the queue.", handOnly, destroys, true, handAction("withdraw")),
 		tool("plus_one", "Plus one", "Add your \"me too\" to someone else's waiting question.", handOnly, mcp.Annotations{}, true, handAction("plus")),
 		tool("im_here", "I'm here", "Say you're there when the maintainer takes your hand.", handOnly, mcp.Annotations{IdempotentHint: true}, true, handAction("here")),
 

@@ -2,6 +2,7 @@ package queue
 
 import (
 	"fmt"
+	"slices"
 	"testing"
 	"time"
 )
@@ -255,10 +256,21 @@ func TestEndIsFinal(t *testing.T) {
 	}
 	var cases []stepCase
 	for _, kind := range everyKind() {
+		if kind == Withdraw {
+			continue // the one exception, below
+		}
 		cases = append(cases, stepCase{
 			name: fmt.Sprintf("FR-SESS-4: after the end, %s is refused", kind),
 			in:   over, do: Action{Kind: kind, ActorID: ana, HandID: 1, At: sec(3700), Title: "One more question"}, refuse: ErrNotLive,
 		})
 	}
+	// FR-HAND-4: ana takes back the question the end carried over; nothing else changes.
+	takenBack := over
+	takenBack.Hands = slices.Clone(over.Hands)
+	takenBack.Hands[0].Status, takenBack.Hands[0].ClosedAt = Withdrawn, sec(3700)
+	cases = append(cases, stepCase{
+		name: "FR-HAND-4: after the end, the author takes back the question it carried over",
+		in:   over, do: Action{Kind: Withdraw, ActorID: ana, HandID: 1, At: sec(3700)}, want: takenBack,
+	})
 	runSteps(t, cases)
 }

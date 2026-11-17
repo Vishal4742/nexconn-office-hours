@@ -283,7 +283,7 @@ func (s *Store) applyWith(ctx context.Context, step stepFunc, sessionID int64, a
 	if err != nil {
 		return Applied{}, fmt.Errorf("store: apply: session: %w", err)
 	}
-	if ap.Before.Hands, err = openHands(ctx, tx, sessionID); err != nil {
+	if ap.Before.Hands, err = openHands(ctx, tx, sessionID, ap.Before.Live); err != nil {
 		return Applied{}, err
 	}
 	if a.Kind == queue.Raise {
@@ -309,7 +309,7 @@ func (s *Store) applyWith(ctx context.Context, step stepFunc, sessionID int64, a
 		UPDATE sessions
 		SET queue_version = queue_version + 1, hands_closed = $2,
 		    status   = CASE WHEN $3 THEN status ELSE 'ended' END,
-		    ended_at = CASE WHEN $3 THEN ended_at ELSE $4 END
+		    ended_at = CASE WHEN $3 THEN ended_at ELSE COALESCE(ended_at, $4) END
 		WHERE id = $1 RETURNING queue_version`, sessionID, after.HandsClosed, after.Live, a.At).Scan(&ap.Version)
 	if err != nil {
 		return Applied{}, fmt.Errorf("store: apply: session: %w", err)
@@ -326,9 +326,16 @@ func (s *Store) applyWith(ctx context.Context, step stepFunc, sessionID int64, a
 	return ap, nil
 }
 
-// openHands loads the hands of a session that are still in the queue.
-func openHands(ctx context.Context, tx pgx.Tx, sessionID int64) ([]queue.Hand, error) {
-	rows, err := tx.Query(ctx, handSelect+` FROM hands h WHERE h.session_id = $1 AND h.status IN ('waiting', 'answering') ORDER BY h.sort_at, h.id`, sessionID)
+// openHands loads the hands an action on the session can still reach: while it is live, those in
+// its queue; once it has ended, the questions it carries over to the next session, which their
+// authors may take back (FR-HAND-4). Those are locked: StartSession moves carried hands without
+// the ended session's lock, and a start that comes first leaves nothing here to take back.
+func openHands(ctx context.Context, tx pgx.Tx, sessionID int64, live bool) ([]queue.Hand, error) {
+	query := handSelect + ` FROM hands h WHERE h.session_id = $1 AND h.status IN ('waiting', 'answering') ORDER BY h.sort_at, h.id`
+	if !live {
+		query = handSelect + ` FROM hands h WHERE h.session_id = $1 AND h.status = 'carried' ORDER BY h.sort_at, h.id FOR UPDATE`
+	}
+	rows, err := tx.Query(ctx, query, sessionID)
 	if err != nil {
 		return nil, fmt.Errorf("store: apply: hands: %w", err)
 	}
