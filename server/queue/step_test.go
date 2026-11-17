@@ -278,6 +278,31 @@ func TestStepWhenTheSessionIsNotLive(t *testing.T) {
 			},
 		)
 	}
+
+	// FR-HAND-4: an ended session takes one action, the author taking back a question it carries
+	// over to the next session, where it would otherwise come first in line.
+	anas, bens := gone(1, ana, Carried, sec(500)), gone(2, ben, Carried, sec(500))
+	carrying := State{Hands: []Hand{anas, bens}}
+	takenBack := anas
+	takenBack.Status, takenBack.ClosedAt = Withdrawn, sec(600)
+	cases = append(cases,
+		stepCase{
+			name: "FR-HAND-4: the author takes back a question that an ended session carries over",
+			in:   carrying, do: act(Withdraw, ana, 1, sec(600)), want: State{Hands: []Hand{takenBack, bens}},
+		},
+		stepCase{
+			name: "FR-HAND-4: nobody else can take it back",
+			in:   carrying, do: act(Withdraw, ben, 1, sec(600)), refuse: ErrNotYours,
+		},
+	)
+	for _, kind := range append(everyKind(), "dance") {
+		if kind != Withdraw {
+			cases = append(cases, stepCase{
+				name: fmt.Sprintf("FR-SESS-4: %s on a carried question is refused once the session is over", kind),
+				in:   carrying, do: act(kind, ana, 1, sec(600)), refuse: ErrNotLive,
+			})
+		}
+	}
 	runSteps(t, cases)
 }
 
