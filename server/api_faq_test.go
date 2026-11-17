@@ -347,8 +347,8 @@ func faqAPIDeleted(a *queueApp) string {
 // is written: the entry is found, and it stays.
 type faqAPIDeleteFails struct{ *fakeFAQ }
 
-func (faqAPIDeleteFails) DeleteFAQ(context.Context, int64) error {
-	return errors.New("connection reset by 10.0.0.5:5432")
+func (faqAPIDeleteFails) DeleteFAQ(context.Context, int64) (int64, int, error) {
+	return 0, 0, errors.New("connection reset by 10.0.0.5:5432")
 }
 
 func TestFAQAPIDelete(t *testing.T) {
@@ -369,6 +369,32 @@ func TestFAQAPIDelete(t *testing.T) {
 		}
 		if len(a.faq.asked) == 0 || a.faq.asked[0] != "delete 7" {
 			t.Errorf("the store was asked %q, want it to start with the delete of 7", a.faq.asked)
+		}
+	})
+
+	t.Run("state-machine audit, bug 12: deleting a hand's answer pings the room with the new queue version, once", func(t *testing.T) {
+		a := faqAPIDeleteApp(t)
+		a.faq.session, a.faq.version = 3, 11
+		for _, attempt := range []string{"the first time", "again"} {
+			if res, body := call(a.mux, "POST", deleteOf("7"), `{}`, a.as(t, hostID)); res.StatusCode != http.StatusOK {
+				t.Fatalf("%s: status %d body %s, want 200", attempt, res.StatusCode, body)
+			}
+		}
+		// handsPing also checks that the bot sent it into the project's room, unstored.
+		if sessionID, version := handsPing(t, a); sessionID != "3" || version != 12 {
+			t.Errorf("the ping names session %s at version %d, want session 3 at version 12", sessionID, version)
+		}
+	})
+
+	t.Run("state-machine audit, bug 12: an answer whose hand is gone changes no queue and pings nobody", func(t *testing.T) {
+		a := faqAPIDeleteApp(t)
+		a.faq.session = 3
+		a.faq.entries[0].HandID = 0
+		if res, body := call(a.mux, "POST", deleteOf("7"), `{}`, a.as(t, hostID)); res.StatusCode != http.StatusOK {
+			t.Fatalf("status %d body %s, want 200", res.StatusCode, body)
+		}
+		if sent := a.chat.types(); sent != "" {
+			t.Errorf("the room was sent %q, want nothing", sent)
 		}
 	})
 
