@@ -70,6 +70,15 @@ func (f *fakeQueue) answer(sessionID int64, a queue.Action) (store.Applied, erro
 	return ap, nil
 }
 
+// RaiseVersion moves the snapshot's session to its next version, as the store moves the room's.
+func (f *fakeQueue) RaiseVersion(context.Context, string) (int64, int, error) {
+	if f.err != nil || f.snapshot.Session == nil {
+		return 0, 0, f.err
+	}
+	f.snapshot.Session.Version++
+	return f.snapshot.Session.ID, f.snapshot.Session.Version, nil
+}
+
 func (f *fakeQueue) Apply(_ context.Context, sessionID int64, a queue.Action) (store.Applied, error) {
 	return f.answer(sessionID, a)
 }
