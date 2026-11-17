@@ -812,3 +812,23 @@ func TestRoomChangesAreLimitedPerPerson(t *testing.T) {
 		}
 	})
 }
+
+func TestRejoinKeepsAMuteThatLandsMeanwhile(t *testing.T) {
+	const join = "/api/p/paperplane/stash/join"
+	// FR-MOD-1: a mute that reaches the chat between the rejoin's look at the mute and its join
+	// may be lifted by the join; it is set again for what is left of it.
+	a := actionApp(t)
+	a.rooms.onJoin = func() { a.projects.muted[queueProject+" "+askerID] = now().Add(10 * time.Minute) }
+	if res, body := call(a.mux, "POST", join, `{}`, a.as(t, askerID)); res.StatusCode != http.StatusOK {
+		t.Fatalf("status %d body %s, want 200", res.StatusCode, body)
+	}
+	if want := []string{fmt.Sprintf("%s %s 10", groupID(queueProject), askerID)}; !reflect.DeepEqual(a.chat.muted, want) {
+		t.Errorf("the chat muted %v, want %v", a.chat.muted, want)
+	}
+
+	// Without a mute, a rejoin mutes nobody.
+	a = actionApp(t)
+	if res, body := call(a.mux, "POST", join, `{}`, a.as(t, askerID)); res.StatusCode != http.StatusOK || len(a.chat.muted) != 0 {
+		t.Errorf("status %d body %s, muted %v; want 200 and nobody muted", res.StatusCode, body, a.chat.muted)
+	}
+}

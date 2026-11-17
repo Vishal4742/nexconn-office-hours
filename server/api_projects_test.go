@@ -101,6 +101,7 @@ type fakeRooms struct {
 	in        map[string]bool   // "group id + space + user id": who is in which group
 	createErr error
 	joinErr   error
+	onJoin    func() // runs during a join that works: what happens meanwhile elsewhere
 }
 
 func (f *fakeRooms) CreateGroup(_ context.Context, channelID, name, ownerID string) error {
@@ -121,6 +122,9 @@ func (f *fakeRooms) JoinGroup(_ context.Context, channelID string, userIDs ...st
 	}
 	for _, id := range userIDs {
 		f.in[channelID+" "+id] = true
+	}
+	if f.onJoin != nil {
+		f.onJoin()
 	}
 	*f.events = append(*f.events, "join "+channelID+" "+strings.Join(userIDs, ","))
 	return nil
