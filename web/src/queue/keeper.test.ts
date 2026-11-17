@@ -379,6 +379,28 @@ describe("keepQueue: a quiet room (Telegram's catch-up after silence)", () => {
     expect(failures).toEqual([]);
   });
 
+  it("asks again a minute after a first load that failed, never while it is on its way (state-machine audit, bug 14)", async () => {
+    const { keeper, page, asked, shown, failures } = setUp();
+    keeper.refresh(); // the room opened at 0
+    page.now = QUIET_LIVE_MS;
+    keeper.checkSilence();
+    expect(asked).toHaveLength(1); // still on its way: nothing more
+
+    asked[0].fail(new Error("offline"));
+    await turn();
+    expect(failures).toHaveLength(1);
+    keeper.checkSilence(); // nothing was heard for a minute, and nothing is shown
+    expect(asked).toHaveLength(2);
+
+    page.now = QUIET_LIVE_MS + 15_000;
+    keeper.checkSilence();
+    expect(asked).toHaveLength(2); // once per quiet spell
+
+    asked[1].answer(at(9, QUIET_LIVE_MS));
+    await turn();
+    expect(versions(shown)).toEqual([9]);
+  });
+
   it("does nothing before a queue is held, or once it was stopped", async () => {
     const fresh = setUp();
     fresh.page.now = 10 * QUIET_IDLE_MS;
