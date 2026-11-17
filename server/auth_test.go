@@ -565,6 +565,10 @@ func TestNewDepsRefusesToStartWithoutItsTwoSecrets(t *testing.T) {
 	if d.guard == nil || d.sessions == nil || d.github != nil || d.users != nil || d.db != nil {
 		t.Fatalf("deps without optional settings = %+v", d)
 	}
+	// NFR-SEC-4: the room's changes are limited per person on every server that starts.
+	if d.changes == nil {
+		t.Fatal("the server starts without a limit on room changes")
+	}
 	// Without a database a role check has nothing to ask, and says so.
 	if err := d.guard.Maintainer(context.Background(), session.User{ID: "gh1"}, "p1"); err == nil || !strings.Contains(err.Error(), "no role store") {
 		t.Fatalf("role check without a database: %v, want the \"no role store\" error", err)

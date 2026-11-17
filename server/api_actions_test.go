@@ -771,3 +771,44 @@ func TestQueueTellsAMutedMemberUntilWhen(t *testing.T) {
 		}
 	})
 }
+
+func TestRoomChangesAreLimitedPerPerson(t *testing.T) {
+	// NFR-SEC-4: every change pings everyone in the room, so a person past their allowance is
+	// refused before anything is written or said. The allowance is drained directly here.
+	drained := func(a *queueApp, userID string) {
+		a.deps.changes = newChangeLimiter()
+		a.remux()
+		for range changeBurst {
+			a.deps.changes.allow(userID, time.Now())
+		}
+	}
+	for _, c := range []struct {
+		name, path, body, who string
+		app                   func(*testing.T) *queueApp
+	}{
+		{"a +1 (a hand's route)", fmt.Sprintf("/api/hands/%d/plus", actionWaitingID), `{}`, askerID, actionApp},
+		{"Last call (a session's route)", fmt.Sprintf("/api/sessions/%d/lastcall", liveSession), `{"closed":true}`, hostID, actionApp},
+		{"a mute (a project's route)", "/api/p/paperplane/stash/mute", `{"userId":"gh2","minutes":10}`, hostID, actionApp},
+		{"removing an answer from the FAQ", "/api/faq/7/delete", `{}`, hostID, faqAPIDeleteApp},
+	} {
+		a := c.app(t)
+		drained(a, c.who)
+		res, body := call(a.mux, "POST", c.path, c.body, a.as(t, c.who))
+		refused(t, c.name, res, body, http.StatusTooManyRequests, "too fast")
+		if len(a.queue.asked) != 0 || a.chat.types() != "" || len(a.chat.muted) != 0 || faqAPIDeleted(a) != "" {
+			t.Errorf("%s: past the allowance something happened: asked %+v, sent %q, muted %v, deleted %q",
+				c.name, a.queue.asked, a.chat.types(), a.chat.muted, faqAPIDeleted(a))
+		}
+	}
+
+	t.Run("NFR-SEC-4: someone else keeps their own allowance, and typing suggestions are never limited", func(t *testing.T) {
+		a := actionApp(t)
+		drained(a, askerID)
+		if res, body := call(a.mux, "POST", fmt.Sprintf("/api/hands/%d/plus", actionWaitingID), `{}`, a.as(t, hostID)); res.StatusCode != http.StatusOK {
+			t.Errorf("another person's +1: status %d body %s, want 200", res.StatusCode, body)
+		}
+		if res, body := call(a.mux, "POST", "/api/p/paperplane/stash/faq/similar", `{"text":"how do I retry"}`, a.as(t, askerID)); res.StatusCode != http.StatusOK {
+			t.Errorf("a typing suggestion past the allowance: status %d body %s, want 200", res.StatusCode, body)
+		}
+	})
+}
