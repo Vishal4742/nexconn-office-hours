@@ -113,14 +113,16 @@ func handOf(s State, id int64) (Hand, bool) {
 }
 
 // mayMove reports whether FR-QUEUE-2 lets a hand go from one status to another inside a session.
-// What left the queue stays where it is; carried → waiting is the store's, when the next session
-// starts.
+// What left the queue stays where it is, but for a carried question, which its author may take
+// back until the next session starts (FR-HAND-4); carried → waiting is the store's, when it does.
 func mayMove(from, to Status) bool {
 	switch from {
 	case Waiting:
 		return slices.Contains([]Status{Answering, Withdrawn, Skipped, Removed, Merged, NotReached, Carried}, to)
 	case Answering:
 		return slices.Contains([]Status{Answered, Skipped, Removed, Waiting}, to)
+	case Carried:
+		return to == Withdrawn
 	}
 	return false
 }

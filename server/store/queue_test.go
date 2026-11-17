@@ -869,3 +869,73 @@ func TestRaiseVersion(t *testing.T) {
 		}
 	})
 }
+
+func TestTakeBackACarriedQuestion(t *testing.T) {
+	ctx := context.Background()
+	at := func(s int) time.Time { return queueAt.Add(time.Duration(s) * time.Second) }
+	withdraw := func(actor string, hand int64) queue.Action {
+		return queue.Action{Kind: queue.Withdraw, ActorID: actor, HandID: hand, At: at(900)}
+	}
+	// A session that ended carrying gh2's question over to the next one.
+	carrying := func(t *testing.T) (*Store, *pgxpool.Pool, int64, int64) {
+		t.Helper()
+		s, pool, session := queueDB(t)
+		hand := queueHand(t, pool, session, "gh2", "waiting", time.Minute)
+		if _, err := s.Apply(ctx, session, queue.Action{Kind: queue.End, ActorID: "gh1", Carry: true, At: at(400)}); err != nil {
+			t.Fatalf("End: %v", err)
+		}
+		return s, pool, session, hand
+	}
+	sessionRow := func(t *testing.T, pool *pgxpool.Pool, id int64) (endedAt time.Time, version int) {
+		t.Helper()
+		if err := pool.QueryRow(ctx, `SELECT ended_at, queue_version FROM sessions WHERE id = $1`, id).Scan(&endedAt, &version); err != nil {
+			t.Fatalf("read session: %v", err)
+		}
+		return endedAt, version
+	}
+
+	t.Run("FR-HAND-4: its author takes it back, the session keeps its end, and its queue moves on", func(t *testing.T) {
+		s, pool, session, hand := carrying(t)
+		ended, version := sessionRow(t, pool, session)
+		ap, err := s.Apply(ctx, session, withdraw("gh2", hand))
+		if err != nil {
+			t.Fatalf("Withdraw: %v", err)
+		}
+		endedNow, versionNow := sessionRow(t, pool, session)
+		if n := count(t, pool, `SELECT count(*) FROM hands WHERE id = $1 AND status = 'withdrawn'`, hand); n != 1 || !endedNow.Equal(ended) || versionNow != version+1 || ap.Version != version+1 {
+			t.Fatalf("withdrawn %d, ended %v (was %v), version %d (was %d, answered %d); want it withdrawn, the end kept and one version more",
+				n, endedNow, ended, versionNow, version, ap.Version)
+		}
+	})
+
+	t.Run("FR-HAND-4: nobody else can, and a question taken back is not in the next session", func(t *testing.T) {
+		s, pool, session, hand := carrying(t)
+		if _, err := s.Apply(ctx, session, withdraw("gh3", hand)); !errors.Is(err, queue.ErrNotYours) {
+			t.Fatalf("someone else's Withdraw = %v, want %v", err, queue.ErrNotYours)
+		}
+		if _, err := s.Apply(ctx, session, withdraw("gh2", hand)); err != nil {
+			t.Fatalf("Withdraw: %v", err)
+		}
+		next, err := s.StartSession(ctx, NewSession{ProjectID: "aaaa", HostID: "gh1", Title: "Thursday office hours"})
+		if err != nil {
+			t.Fatalf("StartSession: %v", err)
+		}
+		if n := count(t, pool, `SELECT count(*) FROM hands WHERE session_id = $1`, next.ID); n != 0 {
+			t.Errorf("the next session starts with %d hands, want none", n)
+		}
+	})
+
+	t.Run("FR-HAND-4: once the next session started, the question waits there, and is taken back there", func(t *testing.T) {
+		s, _, session, hand := carrying(t)
+		next, err := s.StartSession(ctx, NewSession{ProjectID: "aaaa", HostID: "gh1", Title: "Thursday office hours"})
+		if err != nil {
+			t.Fatalf("StartSession: %v", err)
+		}
+		if _, err := s.Apply(ctx, session, withdraw("gh2", hand)); !errors.Is(err, queue.ErrNotLive) {
+			t.Fatalf("Withdraw in the ended session after the start = %v, want %v", err, queue.ErrNotLive)
+		}
+		if _, err := s.Apply(ctx, next.ID, withdraw("gh2", hand)); err != nil {
+			t.Fatalf("Withdraw in the next session: %v", err)
+		}
+	})
+}
