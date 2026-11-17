@@ -406,8 +406,14 @@ func TestCallbackRefusals(t *testing.T) {
 			loc, c := a.startLogin(t, "/p/paperplane/stash")
 			target, cookies := tt.break_(a, loc, c)
 			res := a.do("GET", target, cookies)
-			if res.StatusCode != http.StatusFound || res.Header.Get("Location") != "/?signin="+tt.want {
-				t.Fatalf("status %d, Location %q, want /?signin=%s", res.StatusCode, res.Header.Get("Location"), tt.want)
+			// State-machine audit, bug 10: a failure of this attempt keeps the page it started from,
+			// for the landing page's Try again. An attempt that can't be told (expired) has none.
+			want := "/?signin=" + tt.want
+			if tt.want != "expired" {
+				want += "&next=" + url.QueryEscape("/p/paperplane/stash")
+			}
+			if res.StatusCode != http.StatusFound || res.Header.Get("Location") != want {
+				t.Fatalf("status %d, Location %q, want %s", res.StatusCode, res.Header.Get("Location"), want)
 			}
 			if cookieNamed(res, session.Cookie) != nil {
 				t.Fatal("a session cookie was set on a failed sign-in")
@@ -416,6 +422,28 @@ func TestCallbackRefusals(t *testing.T) {
 				t.Fatalf("Cache-Control = %q, want no-store", res.Header.Get("Cache-Control"))
 			}
 		})
+	}
+}
+
+func TestSignInFromTwoTabs(t *testing.T) {
+	// State-machine audit, bug 10: the browser's one state cookie holds the latest attempt. The
+	// callback of an older one fails as expired and leaves the cookie alone, so the latest one
+	// still signs in (it used to be cleared, and both failed).
+	a := newAuthApp(t)
+	older, _ := a.startLogin(t, "/dashboard")
+	latest, cookie := a.startLogin(t, "/p/paperplane/stash")
+
+	res := a.do("GET", "/auth/github/callback?code=code-xyz&state="+older.Query().Get("state"), []*http.Cookie{cookie})
+	if res.Header.Get("Location") != "/?signin=expired" || cookieNamed(res, oauthCookie) != nil {
+		t.Fatalf("the older attempt: Location %q, state cookie %+v; want expired and the cookie left alone",
+			res.Header.Get("Location"), cookieNamed(res, oauthCookie))
+	}
+	res = a.do("GET", "/auth/github/callback?code=code-xyz&state="+latest.Query().Get("state"), []*http.Cookie{cookie})
+	if res.StatusCode != http.StatusFound || res.Header.Get("Location") != "/p/paperplane/stash" || cookieNamed(res, session.Cookie) == nil {
+		t.Fatalf("the latest attempt: status %d, Location %q; want it signed in and back on its page", res.StatusCode, res.Header.Get("Location"))
+	}
+	if used := cookieNamed(res, oauthCookie); used == nil || used.MaxAge >= 0 {
+		t.Fatalf("NFR-SEC-5: the state cookie was not cleared after its own callback: %+v", used)
 	}
 }
 
