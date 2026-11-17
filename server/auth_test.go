@@ -345,6 +345,38 @@ func TestNobodyIsCalledLikeTheBot(t *testing.T) {
 	}
 }
 
+func TestNoLookalikeIsCalledLikeTheBot(t *testing.T) {
+	// A name only has to look like the bot's to pass as the sender of its cards in the chat.
+	for _, name := range []string{
+		"\u041effice Hours",      // Cyrillic capital O
+		"Office \u041dours",      // Cyrillic capital En for the H
+		"\u039fffice \u0397ours", // Greek capital Omicron and Eta
+		"Offi\u0441e Hours",      // Cyrillic small Es for the c
+		"Office Hour\u0455",      // Cyrillic small Dze for the s
+		"Off\u200bice Hours",     // a zero-width space inside
+		"Office\u2060Hours",      // a word joiner instead of the space
+		"\uff2f\uff46\uff46\uff49\uff43\uff45 \uff28\uff4f\uff55\uff52\uff53", // fullwidth letters
+		"0ffice H0urs",                 // digit zero for the o
+		"Offlce Hours",                 // l for the i
+		"Office-Hours", "office.hours", // punctuation instead of the space
+	} {
+		if got := displayName(github.User{Login: "quiet-dev", Name: name}); got != "quiet-dev" {
+			t.Errorf("%q is called %q, want the login", name, got)
+		}
+	}
+	for _, name := range []string{"Office Hours Fan", "Officer Hours", "Hours of Office", "Mia K", "Lin"} {
+		if got := displayName(github.User{Login: "quiet-dev", Name: name}); got != name {
+			t.Errorf("%q is called %q, want the name as it is", name, got)
+		}
+	}
+	// A login that looks like the bot keeps its @, so the chat never shows the bot's name.
+	for _, u := range []github.User{{Login: "office-hours"}, {Login: "OfficeHours", Name: "Office Hours"}} {
+		if got := displayName(u); got != "@"+u.Login {
+			t.Errorf("%+v is called %q, want @%s", u, got, u.Login)
+		}
+	}
+}
+
 func TestCallbackWithoutANameUsesTheLogin(t *testing.T) {
 	a := newAuthApp(t)
 	a.gh.userReply = `{"id":7,"login":"quiet-dev","name":null,"avatar_url":""}`
