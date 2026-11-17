@@ -113,9 +113,15 @@ func (d deps) deleteFAQ(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
-	if err := d.faq.DeleteFAQ(r.Context(), id); err != nil {
+	sessionID, version, err := d.faq.DeleteFAQ(r.Context(), id)
+	if err != nil {
 		writeError(w, err)
 		return
+	}
+	if sessionID != 0 {
+		// The answered hand's queue moved on: every page that shows it drops the link now, not at
+		// its next fetch (state-machine audit, bug 12).
+		d.tell(r.Context(), projectID, queuePing(sessionID, version))
 	}
 	writeJSON(w, http.StatusOK, envelope{OK: true, Data: struct {
 		ID string `json:"id"`
