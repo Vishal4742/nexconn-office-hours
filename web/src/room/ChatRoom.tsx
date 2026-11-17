@@ -5,6 +5,7 @@ import { isFirefox } from "../browser";
 import { loadRoom } from "../nexconn/lazy";
 import type { Person } from "../nexconn/roster";
 import { listMembers } from "../projects";
+import { MutedNotice } from "./MutedNotice";
 
 type Props = {
   readonly groupId: string;
@@ -12,6 +13,8 @@ type Props = {
   readonly repo: string;
   /** Called with the room's people each time the chat has loaded them. */
   readonly onMembers: (members: readonly Person[]) => void;
+  /** When the viewer's mute ends, while it runs (FR-MOD-1). */
+  readonly mutedUntil: string | null;
 };
 
 type Opening =
@@ -20,7 +23,13 @@ type Opening =
   | { readonly status: "failed"; readonly message: string };
 
 /** The room's chat (FR-PROJ-4): Chat UI's message list and input for the project's group. */
-export function ChatRoom({ groupId, owner, repo, onMembers }: Props) {
+export function ChatRoom({
+  groupId,
+  owner,
+  repo,
+  onMembers,
+  mutedUntil,
+}: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const [opening, setOpening] = useState<Opening>({ status: "opening" });
   const [tries, setTries] = useState(0);
@@ -82,6 +91,7 @@ export function ChatRoom({ groupId, owner, repo, onMembers }: Props) {
           The chat works best in Chrome, Edge or Safari.
         </p>
       )}
+      <MutedNotice until={mutedUntil} />
       {/* Always in the page, so a screen reader hears it; the visible line is below. */}
       <span className="sr-only" role="status">
         {opening.status === "opening" ? "Opening the room…" : ""}

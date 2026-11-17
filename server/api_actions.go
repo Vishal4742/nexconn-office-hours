@@ -312,6 +312,16 @@ func (d deps) muteMember(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadGateway, envelope{Error: "We couldn't mute them in the chat. Try again in a moment."})
 		return
 	}
+	// The muted member's page reads the mute from its next queue (mutedUntil) and says so above
+	// the chat: the room's queue moves on, and the ping makes every page ask for it. Without it,
+	// they learn at their next fetch; the mute itself holds either way.
+	if d.queue != nil {
+		if sessionID, version, err := d.queue.RaiseVersion(r.Context(), p.ID); err != nil {
+			log.Printf("mute %s in %s/%s: tell the room: %v", in.UserID, p.Owner, p.Repo, err)
+		} else if sessionID != 0 {
+			d.tell(r.Context(), p.ID, queuePing(sessionID, version))
+		}
+	}
 	writeJSON(w, http.StatusOK, envelope{OK: true, Data: muteInput{UserID: in.UserID, Minutes: minutes}})
 }
 

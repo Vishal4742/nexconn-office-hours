@@ -64,6 +64,7 @@ const queue: Queue = {
   medianAnswerSeconds: 0,
   serverTime: "2026-11-14T03:05:00Z",
   removedHandIds: [],
+  mutedUntil: null,
 };
 
 const ready =

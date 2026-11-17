@@ -79,4 +79,6 @@ export type Queue = {
   readonly serverTime: string;
   /** The hands a maintainer removed, in every session of the room (FR-MOD-1). */
   readonly removedHandIds: readonly string[];
+  /** When the viewer's own mute in this room ends, while it runs; else null (FR-MOD-1). */
+  readonly mutedUntil: string | null;
 };

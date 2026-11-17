@@ -340,7 +340,7 @@ func TestDescribeQueue(t *testing.T) {
 	}
 
 	t.Run("FR-QUEUE-4: a member sees every hand, which one is theirs and which they +1'd", func(t *testing.T) {
-		q := describeQueue(snap, askerID, at)
+		q := describeQueue(snap, askerID, at, time.Time{})
 		if q.Session == nil || q.Session.ID != "12" || q.Session.Version != 9 || !q.Session.Live || q.Session.Host == nil || q.Session.Host.Login != "login-gh1" || q.Session.EndedAt != nil {
 			t.Fatalf("session = %+v", q.Session)
 		}
@@ -364,20 +364,20 @@ func TestDescribeQueue(t *testing.T) {
 
 	t.Run("FR-MOD-1, AT-18: a removed hand keeps its status and loses its words, for everyone", func(t *testing.T) {
 		for _, viewer := range []string{askerID, otherID, hostID} {
-			gone := describeQueue(snap, viewer, at).Done[1]
+			gone := describeQueue(snap, viewer, at, time.Time{}).Done[1]
 			if gone.ID != "99" || gone.Status != "removed" || gone.Title != "" || gone.Details != "" {
 				t.Errorf("as %s the removed hand is %+v, want its id and status and no text", viewer, gone)
 			}
 		}
 		// Its card is still in the chat, with its words: the room hides them by these ids, the
 		// earlier sessions' included.
-		if got := describeQueue(snap, askerID, at).RemovedHandIDs; !slices.Equal(got, []string{"99", "41"}) {
+		if got := describeQueue(snap, askerID, at, time.Time{}).RemovedHandIDs; !slices.Equal(got, []string{"99", "41"}) {
 			t.Errorf("removedHandIds = %v, want [99 41]", got)
 		}
 	})
 
 	t.Run("a visitor nobody knows owns no hand and +1'd none", func(t *testing.T) {
-		for _, h := range describeQueue(snap, "", at).Hands {
+		for _, h := range describeQueue(snap, "", at, time.Time{}).Hands {
 			if h.IsMine || h.PlusByMe {
 				t.Errorf("hand %s is marked as the visitor's: %+v", h.ID, h)
 			}
@@ -385,11 +385,11 @@ func TestDescribeQueue(t *testing.T) {
 	})
 
 	t.Run("no session yet: null and empty lists, never a missing field", func(t *testing.T) {
-		text, err := json.Marshal(describeQueue(store.Snapshot{}, askerID, at))
+		text, err := json.Marshal(describeQueue(store.Snapshot{}, askerID, at, time.Time{}))
 		if err != nil {
 			t.Fatal(err)
 		}
-		for _, want := range []string{`"session":null`, `"hands":[]`, `"done":[]`, `"nextSessionAt":null`, `"medianAnswerSeconds":0`, `"removedHandIds":[]`} {
+		for _, want := range []string{`"session":null`, `"hands":[]`, `"done":[]`, `"nextSessionAt":null`, `"medianAnswerSeconds":0`, `"removedHandIds":[]`, `"mutedUntil":null`} {
 			if !strings.Contains(string(text), want) {
 				t.Errorf("the JSON has no %s: %s", want, text)
 			}
