@@ -51,12 +51,15 @@ func Step(s State, a Action) (State, error) {
 
 // takeBack is the one action an ended session takes: the author withdraws a question it carries
 // over to the next session, where it would otherwise come first in line (FR-HAND-4). Anything
-// else is ErrNotLive, as it always was; a carried question that is someone else's, ErrNotYours.
+// else is ErrNotLive, as it always was; a carried question that is someone else's, ErrNotYours;
+// none of that id (taken back already, or brought into the session that started), ErrNoSuchHand.
 func takeBack(s State, a Action) (State, error) {
 	i := slices.IndexFunc(s.Hands, func(h Hand) bool { return h.ID == a.HandID && h.Status == Carried })
 	switch {
-	case a.Kind != Withdraw || i < 0:
+	case a.Kind != Withdraw:
 		return State{}, ErrNotLive
+	case i < 0:
+		return State{}, ErrNoSuchHand
 	case s.Hands[i].AuthorID != a.ActorID:
 		return State{}, ErrNotYours
 	}
