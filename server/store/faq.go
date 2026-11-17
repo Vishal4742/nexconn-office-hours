@@ -110,11 +110,27 @@ func (s *Store) ProjectOfFAQ(ctx context.Context, id int64) (projectID string, f
 }
 
 // DeleteFAQ marks an entry deleted; its page answers 410 from then on (FR-FAQ-6). Deleting it
-// again changes nothing, and neither does an id that names no entry.
-func (s *Store) DeleteFAQ(ctx context.Context, id int64) error {
-	_, err := s.pool.Exec(ctx, `UPDATE faq_entries SET deleted_at = now() WHERE id = $1 AND deleted_at IS NULL`, id)
-	if err != nil {
-		return fmt.Errorf("store: delete FAQ entry: %w", err)
+// again changes nothing, and neither does an id that names no entry. When the entry answered a
+// hand, the same statement moves that hand's session to its next queue version, so the pages
+// that show the hand learn to drop its link (state-machine audit, bug 12). It answers with that
+// session and version; sessionID is 0 when no queue changed.
+//
+// The entry's row is locked before the session's, unlike a queue action. That can't deadlock:
+// nothing else locks an entry that exists (Done only inserts them).
+func (s *Store) DeleteFAQ(ctx context.Context, id int64) (sessionID int64, version int, err error) {
+	err = s.pool.QueryRow(ctx, `
+		WITH gone AS (
+			UPDATE faq_entries SET deleted_at = now() WHERE id = $1 AND deleted_at IS NULL RETURNING hand_id
+		)
+		UPDATE sessions s SET queue_version = s.queue_version + 1
+		FROM gone JOIN hands h ON h.id = gone.hand_id
+		WHERE s.id = h.session_id
+		RETURNING s.id, s.queue_version`, id).Scan(&sessionID, &version)
+	if errors.Is(err, pgx.ErrNoRows) { // deleted with no hand, deleted already, or no such entry
+		return 0, 0, nil
 	}
-	return nil
+	if err != nil {
+		return 0, 0, fmt.Errorf("store: delete FAQ entry: %w", err)
+	}
+	return sessionID, version, nil
 }

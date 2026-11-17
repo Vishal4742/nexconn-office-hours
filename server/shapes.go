@@ -25,7 +25,7 @@ type faqStore interface {
 	FAQBySlug(ctx context.Context, projectID, slug string) (store.FAQEntry, bool, error)
 	FAQSuggest(ctx context.Context, projectID, text string, limit int) ([]store.FAQEntry, error)
 	ProjectOfFAQ(ctx context.Context, id int64) (projectID string, found bool, err error)
-	DeleteFAQ(ctx context.Context, id int64) error
+	DeleteFAQ(ctx context.Context, id int64) (sessionID int64, version int, err error)
 }
 
 // statsStore is the part of the store the stats routes use (api_stats.go).
