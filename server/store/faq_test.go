@@ -322,9 +322,24 @@ func TestDeleteFAQ(t *testing.T) {
 		}
 	})
 
+	// The seed's one session holds the hand that clear-the-cache answered.
+	queueVersion := func() int {
+		t.Helper()
+		var version int
+		if err := pool.QueryRow(ctx, `SELECT queue_version FROM sessions WHERE id = 1`).Scan(&version); err != nil {
+			t.Fatalf("read queue_version: %v", err)
+		}
+		return version
+	}
+	versionAtStart := queueVersion()
+
 	t.Run("FR-FAQ-6: a deleted entry leaves every list, and is still found by its slug", func(t *testing.T) {
-		if err := s.DeleteFAQ(ctx, entry.ID); err != nil {
-			t.Fatalf("DeleteFAQ: %v", err)
+		// set-a-timeout answered no hand, so no queue changes.
+		if sessionID, version, err := s.DeleteFAQ(ctx, entry.ID); err != nil || sessionID != 0 || version != 0 {
+			t.Fatalf("DeleteFAQ = %d, %d, %v; want no queue changed", sessionID, version, err)
+		}
+		if got := queueVersion(); got != versionAtStart {
+			t.Errorf("the session's queue went from version %d to %d, want it unchanged", versionAtStart, got)
 		}
 		if deletedAt() == nil {
 			t.Fatal("deleted_at is not set after DeleteFAQ")
@@ -347,8 +362,8 @@ func TestDeleteFAQ(t *testing.T) {
 
 	t.Run("FR-FAQ-6: deleting twice is fine, and keeps the time of the first", func(t *testing.T) {
 		first := deletedAt()
-		if err := s.DeleteFAQ(ctx, entry.ID); err != nil {
-			t.Fatalf("second DeleteFAQ: %v", err)
+		if sessionID, _, err := s.DeleteFAQ(ctx, entry.ID); err != nil || sessionID != 0 {
+			t.Fatalf("second DeleteFAQ = %d, %v; want no queue changed", sessionID, err)
 		}
 		if second := deletedAt(); first == nil || second == nil || !second.Equal(*first) {
 			t.Errorf("deleted_at went from %v to %v, want it unchanged", first, second)
@@ -360,11 +375,26 @@ func TestDeleteFAQ(t *testing.T) {
 	})
 
 	t.Run("FR-FAQ-6: deleting an entry that never existed changes nothing and is no error", func(t *testing.T) {
-		if err := s.DeleteFAQ(ctx, 999999); err != nil {
-			t.Fatalf("DeleteFAQ(unknown): %v", err)
+		if sessionID, version, err := s.DeleteFAQ(ctx, 999999); err != nil || sessionID != 0 || version != 0 {
+			t.Fatalf("DeleteFAQ(unknown) = %d, %d, %v; want nothing changed", sessionID, version, err)
 		}
 		if n := count(t, pool, `SELECT count(*) FROM faq_entries WHERE deleted_at IS NULL`); n != 6 {
 			t.Errorf("%d entries are left, want 6", n)
+		}
+	})
+
+	t.Run("state-machine audit, bug 12: deleting a hand's answer moves the hand's session to its next queue version, once", func(t *testing.T) {
+		answer, found, err := s.FAQBySlug(ctx, "proj1", "clear-the-cache")
+		if err != nil || !found {
+			t.Fatalf("FAQBySlug: %v, %v", found, err)
+		}
+		sessionID, version, err := s.DeleteFAQ(ctx, answer.ID)
+		if err != nil || sessionID != 1 || version != versionAtStart+1 || queueVersion() != versionAtStart+1 {
+			t.Fatalf("DeleteFAQ = session %d, version %d, %v (stored %d); want session 1 at version %d",
+				sessionID, version, err, queueVersion(), versionAtStart+1)
+		}
+		if sessionID, version, err := s.DeleteFAQ(ctx, answer.ID); err != nil || sessionID != 0 || version != 0 || queueVersion() != versionAtStart+1 {
+			t.Errorf("deleting it again = %d, %d, %v (stored %d); want no queue changed", sessionID, version, err, queueVersion())
 		}
 	})
 }

@@ -110,6 +110,10 @@ type fakeFAQ struct {
 	entries []store.FAQEntry // every entry, deleted ones too
 	asked   []string         // what was asked, in order: "list prj1 q=retry limit=5", "delete 7", …
 	err     error            // every call fails with it
+	// The session that holds the entries' hands (0: none) and its queue version: deleting an
+	// answer whose hand is there moves it to the next version, as the store does.
+	session int64
+	version int
 }
 
 func (f *fakeFAQ) matching(projectID, query string, limit int) []store.FAQEntry {
@@ -154,14 +158,20 @@ func (f *fakeFAQ) ProjectOfFAQ(_ context.Context, id int64) (string, bool, error
 	return "", false, f.err
 }
 
-func (f *fakeFAQ) DeleteFAQ(_ context.Context, id int64) error {
+func (f *fakeFAQ) DeleteFAQ(_ context.Context, id int64) (int64, int, error) {
 	f.asked = append(f.asked, fmt.Sprintf("delete %d", id))
 	for i := range f.entries {
-		if f.entries[i].ID == id {
-			f.entries[i].Deleted = true
+		e := &f.entries[i]
+		if e.ID != id || e.Deleted {
+			continue
+		}
+		e.Deleted = true
+		if f.err == nil && e.HandID != 0 && f.session != 0 {
+			f.version++
+			return f.session, f.version, nil
 		}
 	}
-	return f.err
+	return 0, 0, f.err
 }
 
 // fakeChat records what the server said in which room. tell sends at the same time, so it locks.
