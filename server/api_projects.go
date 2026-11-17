@@ -264,6 +264,10 @@ func (d deps) joinRoom(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
+	// Each call can ask Nexconn, and the room page joins whenever a member opens it (NFR-SEC-4).
+	if d.tooFast(w, u) {
+		return
+	}
 	if d.rooms == nil {
 		writeJSON(w, http.StatusServiceUnavailable, envelope{Error: "The chat isn't set up on this server yet."})
 		return
@@ -272,7 +276,9 @@ func (d deps) joinRoom(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if !project.IsMember {
+	if project.IsMember {
+		d.rejoin(r.Context(), project, u.ID)
+	} else {
 		if err := d.rooms.JoinGroup(r.Context(), groupID(project.ID), u.ID); err != nil {
 			log.Printf("join %s/%s: %v", project.Owner, project.Repo, err)
 			writeJSON(w, http.StatusBadGateway, envelope{Error: "We couldn't add you to the chat room. Try again in a moment."})
@@ -285,6 +291,25 @@ func (d deps) joinRoom(w http.ResponseWriter, r *http.Request) {
 		project.IsMember = true
 	}
 	writeJSON(w, http.StatusOK, envelope{OK: true, Data: describe(project)})
+}
+
+// rejoin puts a member back into the room's Nexconn group, which they may have left from the
+// browser's SDK (GroupChannel.leave()): their members row stays, and without this they could
+// never post again. Nexconn takes a second join as it is (notes/phase-0.md). Not while a mute
+// runs: a leave and a join could lift the chat's mute. A failure is only logged; the member's
+// page asks again the next time it opens the room.
+func (d deps) rejoin(ctx context.Context, project store.Project, userID string) {
+	until, err := d.projects.MutedUntil(ctx, project.ID, userID)
+	switch {
+	case err != nil:
+		log.Printf("rejoin %s/%s: mute: %v", project.Owner, project.Repo, err)
+		return
+	case until.After(now()):
+		return
+	}
+	if err := d.rooms.JoinGroup(ctx, groupID(project.ID), userID); err != nil {
+		log.Printf("rejoin %s/%s: %v", project.Owner, project.Repo, err)
+	}
 }
 
 // roomMembers lists who is in the room, so the chat can show names and avatars (FR-PROJ-4). For

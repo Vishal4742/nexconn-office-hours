@@ -5,7 +5,7 @@ import { useAuth } from "../auth";
 import { Header } from "../components/Header";
 import { Link } from "../components/Link";
 import type { Person } from "../nexconn/roster";
-import { loadProject } from "../projects";
+import { joinProject, loadProject } from "../projects";
 import { tabTitle } from "../queue/polish";
 import { titleFor } from "../router";
 import type { Project, RepoName } from "../projects";
@@ -175,6 +175,13 @@ function MemberRoom({ project, groupId }: MemberRoomProps) {
     () => watchQueue({ owner, repo, groupId, isMaintainer }),
     [owner, repo, groupId, isMaintainer],
   );
+
+  // A member who left the chat's group from the browser's console is put back each time they
+  // open the room: the server joins them again (FR-PROJ-4). Nothing to show when it fails, since
+  // a member who never left loses nothing, and the next visit asks again.
+  useEffect(() => {
+    joinProject({ owner, repo }).catch(() => undefined);
+  }, [owner, repo]);
 
   // FR-AGENT-5: an agent in this browser can do what the room's buttons do, while the room is open.
   useEffect(
