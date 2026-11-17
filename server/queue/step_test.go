@@ -263,18 +263,24 @@ func TestStepWhenTheSessionIsNotLive(t *testing.T) {
 	over := State{Hands: []Hand{waits(1, ana, sec(10)), turn(2, ben, sec(20), sec(60))}}
 	var cases []stepCase
 	for _, kind := range append(everyKind(), "dance") {
+		// A Withdraw that finds no carried question of that id says the hand has gone, as one in
+		// a live session does: taken back already, or brought into the session that started.
+		refusal := ErrNotLive
+		if kind == Withdraw {
+			refusal = ErrNoSuchHand
+		}
 		cases = append(cases,
 			stepCase{
 				name: fmt.Sprintf("FR-SESS-4: %s on a waiting hand is refused once the session is over", kind),
-				in:   over, do: act(kind, ana, 1, sec(600)), refuse: ErrNotLive,
+				in:   over, do: act(kind, ana, 1, sec(600)), refuse: refusal,
 			},
 			stepCase{
 				name: fmt.Sprintf("FR-SESS-4: %s on the hand being answered is refused once the session is over", kind),
-				in:   over, do: act(kind, ben, 2, sec(600)), refuse: ErrNotLive,
+				in:   over, do: act(kind, ben, 2, sec(600)), refuse: refusal,
 			},
 			stepCase{
 				name: fmt.Sprintf("FR-SESS-4: %s is refused in a session that is over and has no hands", kind),
-				in:   State{}, do: Action{Kind: kind, ActorID: host, At: sec(600), Title: "Is anyone here?", Closed: true, Carry: true}, refuse: ErrNotLive,
+				in:   State{}, do: Action{Kind: kind, ActorID: host, At: sec(600), Title: "Is anyone here?", Closed: true, Carry: true}, refuse: refusal,
 			},
 		)
 	}
