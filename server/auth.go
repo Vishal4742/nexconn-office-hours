@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	"officehours/github"
 	"officehours/guard"
@@ -162,14 +163,53 @@ func (d deps) callback(w http.ResponseWriter, r *http.Request) {
 
 // displayName is what the app calls someone: their GitHub name or login, except that nobody is
 // called like the bot. A GitHub name is free text, and in the chat a person named "Office Hours"
-// would look like the sender of the cards.
+// would look like the sender of the cards, and so would one who only looks like it. Such a name
+// gives way to the login, and a login that looks like it keeps its @.
 func displayName(u github.User) string {
 	name := u.DisplayName()
-	// Any run of spaces counts as one, so "Office  Hours" does not slip through.
-	if strings.EqualFold(strings.Join(strings.Fields(name), " "), botName) {
+	switch {
+	case looksLikeTheBot(u.Login):
+		return "@" + u.Login
+	case looksLikeTheBot(name):
 		return u.Login
 	}
 	return name
+}
+
+// lookalikes are letters of other scripts, and digits, that pass for those of the bot's name.
+var lookalikes = map[rune]rune{
+	'О': 'o', 'о': 'o', 'Ο': 'o', 'ο': 'o', '0': 'o', // Cyrillic, Greek, zero
+	'С': 'c', 'с': 'c', 'Ϲ': 'c', 'ϲ': 'c',
+	'Е': 'e', 'е': 'e', 'Ε': 'e',
+	'Н': 'h', 'н': 'h', 'Η': 'h', 'һ': 'h',
+	'І': 'i', 'і': 'i', 'Ι': 'i', 'ι': 'i', '1': 'i', 'l': 'i', 'Ӏ': 'i',
+	'Ѕ': 's', 'ѕ': 's',
+	'υ': 'u', 'ս': 'u',
+	'г': 'r',
+}
+
+// botLetters is the bot's name as looksLikeTheBot reads one.
+var botLetters = strings.ToLower(strings.ReplaceAll(botName, " ", ""))
+
+// looksLikeTheBot reads only the letters of a name, in lower case, after wide letters become
+// plain ones and lookalikes the letters they pass for: spaces, punctuation and invisible
+// characters such as a zero-width space don't count. Anything that reads "officehours" then
+// looks like the bot. ponytail: a short table, not Unicode's confusables list; extend it when a
+// new disguise turns up.
+func looksLikeTheBot(name string) bool {
+	var letters strings.Builder
+	for _, r := range name {
+		if r >= 0xFF01 && r <= 0xFF5E { // fullwidth forms of ASCII
+			r -= 0xFEE0
+		}
+		if plain, ok := lookalikes[r]; ok {
+			r = plain
+		}
+		if unicode.IsLetter(r) {
+			letters.WriteRune(unicode.ToLower(r))
+		}
+	}
+	return letters.String() == botLetters
 }
 
 // logout clears the session cookie (FR-AUTH-4). It needs our Origin, so another site can't sign
