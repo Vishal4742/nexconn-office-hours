@@ -833,3 +833,39 @@ func raisedIn(ap Applied) (int64, bool) {
 	}
 	return 0, false
 }
+
+func TestRaiseVersion(t *testing.T) {
+	ctx := context.Background()
+	version := func(t *testing.T, pool *pgxpool.Pool, id int64) int {
+		t.Helper()
+		return count(t, pool, `SELECT queue_version FROM sessions WHERE id = $1`, id)
+	}
+
+	t.Run("FR-MOD-1: the live session moves to its next version, the ended ones stay", func(t *testing.T) {
+		s, pool, live := queueDB(t)
+		ended := queueSession(t, pool, "aaaa", "ended") // started later, but ended
+		before := version(t, pool, live)
+		sessionID, v, err := s.RaiseVersion(ctx, "aaaa")
+		if err != nil || sessionID != live || v != before+1 || version(t, pool, live) != before+1 || version(t, pool, ended) != 0 {
+			t.Fatalf("RaiseVersion = session %d at %d, %v (stored %d, the ended one %d); want session %d at %d",
+				sessionID, v, err, version(t, pool, live), version(t, pool, ended), live, before+1)
+		}
+	})
+
+	t.Run("FR-MOD-1: with no live session, the last one moves", func(t *testing.T) {
+		s, pool, first := queueDB(t)
+		mustExec(t, pool, `UPDATE sessions SET status = 'ended', ended_at = now() WHERE id = $1`, first)
+		last := queueSession(t, pool, "aaaa", "ended")
+		if sessionID, v, err := s.RaiseVersion(ctx, "aaaa"); err != nil || sessionID != last || v != 1 || version(t, pool, first) != 0 {
+			t.Fatalf("RaiseVersion = session %d at %d, %v; want session %d at 1 and the first left alone", sessionID, v, err, last)
+		}
+	})
+
+	t.Run("FR-MOD-1: a project that never had a session changes nothing", func(t *testing.T) {
+		s, pool, _ := queueDB(t)
+		mustExec(t, pool, `INSERT INTO projects (id, github_id, owner, repo, created_by) VALUES ('bbbb', 12, 'PaperPlane', 'Other', 'gh1')`)
+		if sessionID, v, err := s.RaiseVersion(ctx, "bbbb"); err != nil || sessionID != 0 || v != 0 {
+			t.Fatalf("RaiseVersion = %d, %d, %v; want nothing changed", sessionID, v, err)
+		}
+	})
+}

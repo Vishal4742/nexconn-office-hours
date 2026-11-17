@@ -548,8 +548,13 @@ func TestMuteMember(t *testing.T) {
 			if want := []string{fmt.Sprintf("%s %s %d", groupID(queueProject), askerID, c.minutes)}; !reflect.DeepEqual(a.chat.muted, want) {
 				t.Errorf("%s: the chat muted %v, want %v", c.body, a.chat.muted, want)
 			}
-			if len(a.queue.asked) != 0 || a.chat.types() != "" {
-				t.Errorf("%s: a mute changed the queue (%+v) or was said in the room (%q)", c.body, a.queue.asked, a.chat.types())
+			if len(a.queue.asked) != 0 {
+				t.Errorf("%s: a mute changed the queue's hands: %+v", c.body, a.queue.asked)
+			}
+			// The muted member's page asks for the queue at once, and learns of the mute from it:
+			// the room's session moves to its next version, and only a ping goes out, no card.
+			if sessionID, version := handsPing(t, a); sessionID != idText(liveSession) || version != actionVersion+1 {
+				t.Errorf("%s: the ping names session %s at version %d, want %d at %d", c.body, sessionID, version, liveSession, actionVersion+1)
 			}
 			// AT-18: the server keeps the mute's end too, because a raised hand reaches the room
 			// through the bot, which no mute in the chat stops.
@@ -557,6 +562,17 @@ func TestMuteMember(t *testing.T) {
 			if got := a.projects.muted[queueProject+" "+askerID]; got.Sub(want).Abs() > time.Minute {
 				t.Errorf("%s: the mute is kept until %v, want about %v", c.body, got, want)
 			}
+		}
+	})
+
+	t.Run("FR-MOD-1: in a room that never had a session the mute is kept, and nothing is said", func(t *testing.T) {
+		a := actionApp(t)
+		a.queue.snapshot = store.Snapshot{}
+		if res, body := call(a.mux, "POST", path, `{"userId":"gh2","minutes":10}`, a.as(t, hostID)); res.StatusCode != http.StatusOK {
+			t.Fatalf("status %d body %s, want 200", res.StatusCode, body)
+		}
+		if a.projects.muted[queueProject+" "+askerID].IsZero() || a.chat.types() != "" {
+			t.Errorf("kept until %v, the room was sent %q; want the mute kept and nothing sent", a.projects.muted[queueProject+" "+askerID], a.chat.types())
 		}
 	})
 
@@ -624,6 +640,9 @@ func TestMuteMember(t *testing.T) {
 		refused(t, "a chat that fails", res, body, http.StatusBadGateway, "couldn't mute")
 		if strings.Contains(body, "1004") || strings.Contains(body, "pk_live") {
 			t.Errorf("the reply carries the chat service's own words: %s", body)
+		}
+		if a.chat.types() != "" || a.queue.snapshot.Session.Version != actionVersion {
+			t.Errorf("the room was sent %q and the queue is at version %d; want nothing sent and version %d", a.chat.types(), a.queue.snapshot.Session.Version, actionVersion)
 		}
 
 		a = actionApp(t)
@@ -698,4 +717,57 @@ func TestActionsAreForMaintainersOnly(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestQueueTellsAMutedMemberUntilWhen(t *testing.T) {
+	const page = "/api/p/paperplane/stash/queue"
+	plus := fmt.Sprintf("/api/hands/%d/plus", actionWaitingID)
+	mutedUntil := func(t *testing.T, res *http.Response, body string) *time.Time {
+		t.Helper()
+		if res.StatusCode != http.StatusOK {
+			t.Fatalf("status %d body %s, want 200", res.StatusCode, body)
+		}
+		var q queueJSON
+		decode(t, body, &q)
+		return q.MutedUntil
+	}
+
+	t.Run("FR-MOD-1: a muted member's queue says until when, in the answer to their own action too", func(t *testing.T) {
+		a := actionApp(t)
+		until := now().Add(10 * time.Minute)
+		a.projects.muted[queueProject+" "+askerID] = until
+		res, body := call(a.mux, "GET", page, "", a.as(t, askerID))
+		if got := mutedUntil(t, res, body); got == nil || !got.Equal(until) {
+			t.Errorf("the queue says muted until %v, want %v", got, until)
+		}
+		// Every action answers with the queue: without the time, the notice would go away.
+		res, body = call(a.mux, "POST", plus, `{}`, a.as(t, askerID))
+		if got := mutedUntil(t, res, body); got == nil || !got.Equal(until) {
+			t.Errorf("the +1's answer says muted until %v, want %v", got, until)
+		}
+	})
+
+	t.Run("FR-MOD-1: nobody else is told, a mute that has ended is none, and a failed lookup shows none", func(t *testing.T) {
+		a := actionApp(t)
+		a.projects.muted[queueProject+" "+askerID] = now().Add(10 * time.Minute)
+		asViewer := func(viewer *http.Cookie) *time.Time {
+			t.Helper()
+			res, body := call(a.mux, "GET", page, "", viewer)
+			return mutedUntil(t, res, body)
+		}
+		for name, viewer := range map[string]*http.Cookie{"another member": a.as(t, otherID), "the maintainer": a.as(t, hostID), "someone signed out": nil} {
+			if got := asViewer(viewer); got != nil {
+				t.Errorf("%s is told %v, want nothing", name, got)
+			}
+		}
+		a.projects.muted[queueProject+" "+askerID] = now().Add(-time.Minute)
+		if got := asViewer(a.as(t, askerID)); got != nil {
+			t.Errorf("a mute that ended a minute ago still shows until %v", got)
+		}
+		a.projects.muted[queueProject+" "+askerID] = now().Add(10 * time.Minute)
+		a.projects.muteErr = errors.New("connection reset")
+		if got := asViewer(a.as(t, askerID)); got != nil {
+			t.Errorf("a lookup that failed shows %v, want the queue without a mute", got)
+		}
+	})
 }
