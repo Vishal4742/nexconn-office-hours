@@ -283,7 +283,7 @@ func (s *Store) applyWith(ctx context.Context, step stepFunc, sessionID int64, a
 	if err != nil {
 		return Applied{}, fmt.Errorf("store: apply: session: %w", err)
 	}
-	if ap.Before.Hands, err = openHands(ctx, tx, sessionID, ap.Before.Live); err != nil {
+	if ap.Before.Hands, err = openHands(ctx, tx, sessionID, ap.Before.Live, a.HandID); err != nil {
 		return Applied{}, err
 	}
 	if a.Kind == queue.Raise {
@@ -327,15 +327,16 @@ func (s *Store) applyWith(ctx context.Context, step stepFunc, sessionID int64, a
 }
 
 // openHands loads the hands an action on the session can still reach: while it is live, those in
-// its queue; once it has ended, the questions it carries over to the next session, which their
-// authors may take back (FR-HAND-4). Those are locked: StartSession moves carried hands without
-// the ended session's lock, and a start that comes first leaves nothing here to take back.
-func openHands(ctx context.Context, tx pgx.Tx, sessionID int64, live bool) ([]queue.Hand, error) {
-	query := handSelect + ` FROM hands h WHERE h.session_id = $1 AND h.status IN ('waiting', 'answering') ORDER BY h.sort_at, h.id`
+// its queue; once it has ended, the one carried question the action names, which its author may
+// take back (FR-HAND-4). That one is locked: StartSession moves carried hands without the ended
+// session's lock, and a start that moved it first leaves nothing here to take back. One row, so
+// it can't lock in another order than the start does.
+func openHands(ctx context.Context, tx pgx.Tx, sessionID int64, live bool, handID int64) ([]queue.Hand, error) {
+	query, args := handSelect+` FROM hands h WHERE h.session_id = $1 AND h.status IN ('waiting', 'answering') ORDER BY h.sort_at, h.id`, []any{sessionID}
 	if !live {
-		query = handSelect + ` FROM hands h WHERE h.session_id = $1 AND h.status = 'carried' ORDER BY h.sort_at, h.id FOR UPDATE`
+		query, args = handSelect+` FROM hands h WHERE h.session_id = $1 AND h.status = 'carried' AND h.id = $2 FOR UPDATE`, []any{sessionID, handID}
 	}
-	rows, err := tx.Query(ctx, query, sessionID)
+	rows, err := tx.Query(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("store: apply: hands: %w", err)
 	}

@@ -210,14 +210,15 @@ export function roomTools(
     {
       name: "get_queue",
       title: "Get the queue",
-      description: `The live session of ${name} and its open hands, each with its id, author, question and +1s, as this page shows them.${words}`,
+      description: `The live session of ${name} and its open hands, each with its id, author, question and +1s, as this page shows them, and after a session your question it carries over to the next one (carriedOver), which withdraw_hand takes back.${words}`,
       inputSchema: nothing,
       annotations: { readOnlyHint: true, untrustedContentHint: true },
       execute: async () => {
         const state = queue();
         if (state.status !== "ready")
           return refused("The queue is still loading. Try again in a moment.");
-        const { session, hands, nextSessionAt } = state.queue;
+        const { session, hands, done, nextSessionAt } = state.queue;
+        const carried = done.find((h) => h.isMine && h.status === "carried");
         return said(
           JSON.stringify({
             session: session && {
@@ -238,6 +239,9 @@ export function roomTools(
               plusByMe: h.plusByMe,
               isMine: h.isMine,
             })),
+            carriedOver: carried
+              ? { id: carried.id, title: carried.title }
+              : null,
           }),
         );
       },
